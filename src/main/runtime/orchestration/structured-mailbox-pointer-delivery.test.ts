@@ -238,7 +238,7 @@ describe('structured mailbox pointer delivery', () => {
     delivery.deliverForHandle('dispatch:d1')
     await flush()
     expect(send).toHaveBeenCalledTimes(2)
-    expect(markAsDelivered).toHaveBeenCalledWith(['m1'])
+    expect(markAsDelivered).toHaveBeenCalledWith(['m1'], 'dispatch:d1')
   })
 
   it('sends the pointer through the chat, with who it is from, and counts it pointed once queued', async () => {
@@ -305,7 +305,10 @@ describe('structured mailbox pointer delivery', () => {
     expect(send.mock.calls[1]![0].body.from).toMatchObject({
       orchestration: { messages: [{ messageId: 'm2' }] }
     })
-    expect(markAsDelivered.mock.calls).toEqual([[['m1']], [['m2']]])
+    expect(markAsDelivered.mock.calls).toEqual([
+      [['m1'], 'run:run_1'],
+      [['m2'], 'run:run_1']
+    ])
     delivery.onJournalActivity('session-1')
     delivery.deliverForHandle('run:run_1')
     await flush()

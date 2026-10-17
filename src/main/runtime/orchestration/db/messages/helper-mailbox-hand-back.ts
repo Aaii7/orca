@@ -8,8 +8,11 @@ export type MailHandBack = { mailbox: string; messageIds: string[]; types: strin
  * questions (even ones it read) become the Run coordinator's, delivered as if they just arrived.
  */
 export function handHelperMailToRun(db: OrchestrationDb, dispatchId: string): void {
-  const runId = db.getDispatchContextById(dispatchId)?.run_id
-  if (!runId) {
+  // Why: every settlement runs this, so read only the Run, not the whole dispatch row.
+  const runId = db.db
+    .prepare('SELECT run_id FROM dispatch_contexts WHERE id = ?')
+    .get(dispatchId)?.run_id
+  if (typeof runId !== 'string') {
     return
   }
   const mailbox = `dispatch:${dispatchId}`
