@@ -130,8 +130,15 @@ export function sendPointToPointMessage(args: {
           ? { message: exposeMessage(msg), lifecycle: reconciled }
           : { message: exposeMessage(msg) }
       )
-      return recordReceiptForPostCommitNudge(recordMutationReceipt, receipt, () =>
-        runtime.notifyMessageArrived(msg.to_handle, msg.type)
+      // Why: a replayed receipt re-offers the helper mail this settlement handed to the Run too.
+      const handedBack = db.pendingMailHandBacks.flatMap(({ mailbox, types }) =>
+        types.map((type) => ({ to: mailbox, type }))
+      )
+      return recordReceiptForPostCommitNudge(
+        recordMutationReceipt,
+        receipt,
+        () => runtime.notifyMessageArrived(msg.to_handle, msg.type),
+        { kind: 'messages', targets: [{ to: msg.to_handle, type: msg.type }, ...handedBack] }
       )
     }
     const receipt = withSendWarnings({ message: exposeMessage(msg) })

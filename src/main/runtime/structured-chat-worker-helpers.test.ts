@@ -7,10 +7,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { formatOrcaSessionAddress } from '../../shared/orca-session-address'
 import { testOrcaSessionId } from '../../shared/orca-session-address-test-fixture'
 import { idOf } from './rpc/orchestration-session-caller-test-fixture'
+import type { DispatchCreator } from './orchestration/db/dispatch-depth'
 import {
   COORDINATOR,
   PEER_CHAT,
   WAIT,
+  WORKER_2_PANE,
   WORKER_PANE,
   call,
   coordinatorRunAndTask,
@@ -18,11 +20,15 @@ import {
   dispatcher,
   openChat,
   request,
-  runtime
+  restartRuntime,
+  runtime,
+  turnText
 } from './structured-chat-coordinator-mail-rig.test-fixture'
 
 const WORKER = formatOrcaSessionAddress(testOrcaSessionId(PEER_CHAT))
 const HELPER = 'term_worker'
+/** A helper's own helper, two levels below the Run's coordinator. */
+const LEAF = 'term_worker_2'
 
 async function refusal(method: string, params: Record<string, unknown>, sessionId: string) {
   const response = await dispatcher.dispatch(request(method, params, { sessionId }))
@@ -33,9 +39,14 @@ async function refusal(method: string, params: Record<string, unknown>, sessionI
 }
 
 /** The helper row worker-start reserves once the worker's authority resolved, in a live terminal. */
-function reserveHelper(creatorDispatchId: string): { dispatchId: string; taskId: string } {
+function reserveHelper(
+  creatorDispatchId: string,
+  creator: DispatchCreator = { kind: 'session', orcaSessionId: testOrcaSessionId(PEER_CHAT) },
+  handle = HELPER,
+  paneKey = WORKER_PANE
+): { dispatchId: string; taskId: string } {
   const started = db.createStartingWorkerDispatch({
-    creator: { kind: 'session', orcaSessionId: testOrcaSessionId(PEER_CHAT) },
+    creator,
     maxDepth: runtime.getNestedWorkerMaxDepth(),
     requiredCreatorDispatchId: creatorDispatchId,
     taskSpec: 'review the parser',
@@ -45,9 +56,9 @@ function reserveHelper(creatorDispatchId: string): { dispatchId: string; taskId:
   })
   db.prepareStartingWorkerAuthority({
     dispatchId: started.dispatch.id,
-    handle: HELPER,
-    paneKey: WORKER_PANE,
-    processIncarnation: `runtime_test:${HELPER}:1`,
+    handle,
+    paneKey,
+    processIncarnation: `runtime_test:${handle}:1`,
     worktreeId: 'repo::worker',
     effects: [],
     setupState: 'not_applicable'
@@ -67,11 +78,7 @@ function helperSend(type: string, subject: string, helper: { dispatchId: string;
 
 type InboxMessage = { id: string; subject: string; type: string }
 
-async function check(
-  sessionId: string,
-  ack?: unknown
-): Promise<{ deliveryId: unknown; messages: InboxMessage[] }> {
-  const inbox = await call('orchestration.check', ack ? { ack } : {}, { sessionId })
+function inboxOf(inbox: Record<string, unknown>) {
   const messages = Array.isArray(inbox.messages)
     ? inbox.messages.map((message: Record<string, unknown>) => ({
         id: String(message.id),
@@ -82,8 +89,20 @@ async function check(
   return { deliveryId: inbox.deliveryId, messages }
 }
 
-async function subjects(sessionId: string, ack?: unknown): Promise<string[]> {
-  return (await check(sessionId, ack)).messages.map((message) => message.subject)
+/** A chat checks by its session; a terminal helper by its handle. */
+async function check(caller: string, ack?: unknown) {
+  const byTerminal = caller.startsWith('term_')
+  return inboxOf(
+    await call(
+      'orchestration.check',
+      { ...(byTerminal ? { terminal: caller } : {}), ...(ack ? { ack } : {}) },
+      byTerminal ? {} : { sessionId: caller }
+    )
+  )
+}
+
+async function subjects(caller: string, ack?: unknown): Promise<string[]> {
+  return (await check(caller, ack)).messages.map((message) => message.subject)
 }
 
 describe('a worker starting helpers on the Run it works for', () => {
@@ -148,5 +167,128 @@ describe('a worker starting helpers on the Run it works for', () => {
     )
     await helperSend('worker_done', 'Helper done', helper)
     expect(await subjects(COORDINATOR)).toEqual(['Blocked again', 'Parent done', 'Helper done'])
+  })
+})
+
+/** The Run's coordinator, a dispatched chat, its terminal helper, and that helper's own helper. */
+async function threeLevels() {
+  const chat = await openChat(COORDINATOR)
+  await openChat(PEER_CHAT)
+  const { runId, taskId } = await coordinatorRunAndTask()
+  const parent = idOf(
+    (await call('orchestration.dispatch', { task: taskId, to: WORKER }, { sessionId: COORDINATOR }))
+      .dispatch
+  )
+  vi.spyOn(runtime, 'getNestedWorkerMaxDepth').mockReturnValue(3)
+  const middle = reserveHelper(parent)
+  const leaf = reserveHelper(
+    middle.dispatchId,
+    { kind: 'terminal', handle: HELPER, paneKey: WORKER_PANE },
+    LEAF,
+    WORKER_2_PANE
+  )
+  return { chat, runId, middle, leaf }
+}
+
+/** The coordinator waiting on questions only, as its loop does between steps. */
+async function parkRunQuestionCheck(runId: string) {
+  expect(await subjects(COORDINATOR)).toEqual([])
+  const parked = call(
+    'orchestration.check',
+    { wait: true, types: 'question', timeoutMs: 10_000 },
+    { sessionId: COORDINATOR }
+  )
+  await vi.waitFor(
+    () => expect(runtime.messageWaitersByHandle.has(`run:${runId}`)).toBe(true),
+    WAIT
+  )
+  return { parked }
+}
+
+async function answerFromRun(parked: Promise<Record<string, unknown>>, expected: string[]) {
+  const woke = inboxOf(await parked)
+  expect(woke.messages.map((message) => message.subject)).toEqual(expected)
+  const question = woke.messages.find((message) => message.type === 'question')!
+  await call(
+    'orchestration.reply',
+    { id: question.id, body: 'the TOML one' },
+    { sessionId: COORDINATOR }
+  )
+  return woke
+}
+
+describe('a helper whose creator settles between it and the Run', () => {
+  it('wakes the Run for its question, which the Run answers, and reports arrive once', async () => {
+    const { runId, middle } = await threeLevels()
+    await call('orchestration.send', { from: LEAF, type: 'status', subject: 'Read status' })
+    const asked = call('orchestration.ask', { from: LEAF, question: 'Which parser?' })
+    await vi.waitFor(
+      () => expect(db.getAllMessages(`dispatch:${middle.dispatchId}`)).toHaveLength(2),
+      WAIT
+    )
+    // The middle worker reads both, but never answers.
+    const read = await check(HELPER)
+    expect(read.messages.map((message) => message.subject)).toEqual(['Read status', 'Question'])
+    expect(await subjects(HELPER, read.deliveryId)).toEqual([])
+    await call('orchestration.send', { from: LEAF, type: 'status', subject: 'Unread status' })
+    const { parked } = await parkRunQuestionCheck(runId)
+
+    await helperSend('worker_done', 'Middle done', middle)
+    const woke = await answerFromRun(parked, ['Question', 'Unread status'])
+    expect(await asked).toMatchObject({ answer: 'the TOML one' })
+    expect(await subjects(COORDINATOR, woke.deliveryId)).toEqual([])
+    expect(await subjects(PEER_CHAT)).toEqual(['Middle done'])
+  })
+
+  it('also hands over a question asked while its creator was being stopped', async () => {
+    const { runId, middle } = await threeLevels()
+    const { parked } = await parkRunQuestionCheck(runId)
+    db.beginWorkerStop(middle.dispatchId, 'test-stop')
+    const asked = call('orchestration.ask', { from: LEAF, question: 'Which parser?' })
+    await vi.waitFor(
+      () => expect(db.getAllMessages(`dispatch:${middle.dispatchId}`)).toHaveLength(1),
+      WAIT
+    )
+
+    db.settleWorkerStop(middle.dispatchId)
+    await answerFromRun(parked, ['Question'])
+    expect(await asked).toMatchObject({ answer: 'the TOML one' })
+  })
+
+  it('moves nothing on rollback; a restart offers a committed hand-back nothing woke', async () => {
+    const { chat, runId, middle, leaf } = await threeLevels()
+    const mailbox = `dispatch:${middle.dispatchId}`
+    db.createQuestion({
+      runId,
+      dispatchId: leaf.dispatchId,
+      askerHandle: LEAF,
+      question: 'Which parser?',
+      to: mailbox
+    })
+    await call('orchestration.send', { from: LEAF, type: 'status', subject: 'Unread status' })
+    const ids = db.getAllMessages(mailbox).map((message) => message.id)
+    // The middle worker's pointer for both already landed.
+    db.markAsDelivered(ids, mailbox)
+    const notify = vi.spyOn(runtime, 'notifyMessageArrived')
+
+    db.db.exec('BEGIN IMMEDIATE')
+    db.completeDispatch(middle.dispatchId)
+    db.db.exec('ROLLBACK')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(db.getAllMessages(mailbox)).toHaveLength(2)
+    expect(db.getUndeliveredUnreadMessages(mailbox)).toEqual([])
+    expect(notify).not.toHaveBeenCalledWith(`run:${runId}`, expect.anything())
+
+    // Committed, but the process ends before anything wakes the Run; the old pointer lands late.
+    db.mailHandBackListener = undefined
+    db.completeDispatch(middle.dispatchId)
+    db.markAsDelivered(ids, mailbox)
+    expect(db.getUndeliveredUnreadMessages(`run:${runId}`).map((message) => message.id)).toEqual(
+      expect.arrayContaining(ids)
+    )
+
+    restartRuntime()
+    await vi.waitFor(() => expect(chat.turns).toHaveLength(1), WAIT)
+    expect(turnText(chat.turns[0]!)).toMatch(/orchestration message/)
   })
 })

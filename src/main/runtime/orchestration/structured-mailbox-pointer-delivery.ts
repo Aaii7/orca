@@ -298,7 +298,7 @@ export class OrchestrationStructuredMailboxPointerDelivery<
     })
     if (operation.kind === 'stamp') {
       // A send this lane gave up waiting on ran after all.
-      db.markAsDelivered(staged)
+      db.markAsDelivered(staged, mailboxHandle)
       db.deleteStructuredPointerOperation(mailboxHandle)
       this.sentOperationIds.delete(mailboxHandle)
       return
@@ -325,7 +325,7 @@ export class OrchestrationStructuredMailboxPointerDelivery<
       this.retain(mailboxHandle, sessionId, retainReasonForDispatch(outcome.state), reservedTypes)
       return
     }
-    db.markAsDelivered(staged)
+    db.markAsDelivered(staged, mailboxHandle)
     // The nudge landed as its own turn, so the next settle edge is the natural retry point for
     // anything that arrives while it runs.
     db.deleteStructuredPointerOperation(mailboxHandle)

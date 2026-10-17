@@ -2,6 +2,7 @@ import type { MessageRow, QuestionRow } from '../../types'
 import { OrchestrationError } from '../../orchestration-error'
 import { exposeQuestionTimestamps } from '../utc-timestamp'
 import type { OrchestrationDb } from '../orchestration-db'
+import { handHelperMailToRun } from '../messages/helper-mailbox-hand-back'
 
 export function createQuestion(
   this: OrchestrationDb,
@@ -165,53 +166,8 @@ export function answerQuestion(
   }
 }
 
-/**
- * A settled worker no longer reads its mailbox, so what its helpers sent it and it never handled
- * (unread reports, unanswered questions) moves to the Run, whose coordinator supervises next.
- */
-function handHelperMailToRun(db: OrchestrationDb, dispatchId: string): void {
-  const helperRun: unknown = db.db
-    .prepare(
-      `SELECT helper.run_id FROM dispatch_contexts AS helper
-       JOIN dispatch_contexts AS creator ON creator.id = helper.creator_dispatch_id
-       WHERE helper.creator_dispatch_id = ? AND helper.run_id = creator.run_id LIMIT 1`
-    )
-    .get(dispatchId)
-  const runId =
-    helperRun && typeof helperRun === 'object' && 'run_id' in helperRun
-      ? String(helperRun.run_id)
-      : undefined
-  if (!runId) {
-    return
-  }
-  const mailbox = `dispatch:${dispatchId}`
-  const runMailbox = `run:${runId}`
-  const questions = db.db
-    .prepare(
-      `UPDATE messages SET to_handle = ?, read = 0
-       WHERE run_id = ? AND to_handle = ? AND id IN (
-         SELECT message_id FROM question_threads WHERE run_id = ? AND status = 'pending'
-       )`
-    )
-    .run(runMailbox, runId, mailbox, runId)
-  const reports = db.db
-    .prepare(
-      `UPDATE messages SET to_handle = ?
-       WHERE run_id = ? AND to_handle = ? AND read = 0
-         AND delivery_contract = 'current_delivery'
-         AND type IN ('worker_done', 'escalation', 'status')
-         AND json_valid(payload) AND json_extract(payload, '$.dispatchId') IN (
-           SELECT id FROM dispatch_contexts WHERE creator_dispatch_id = ?
-         )`
-    )
-    .run(runMailbox, runId, mailbox, dispatchId)
-  if (Number(questions.changes) + Number(reports.changes) > 0) {
-    db.fenceUnacknowledgedMailboxDeliveries(mailbox)
-  }
-}
-
 export function closeQuestionsForDispatch(this: OrchestrationDb, dispatchId: string): string[] {
-  // Every settlement path closes the settled Dispatch's own questions here.
+  // Every settlement path calls this, so it is also where helper mail moves to the Run.
   handHelperMailToRun(this, dispatchId)
   const rows = this.db
     .prepare("SELECT message_id FROM question_threads WHERE dispatch_id = ? AND status = 'pending'")
