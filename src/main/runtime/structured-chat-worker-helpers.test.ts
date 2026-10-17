@@ -6,7 +6,7 @@ import './rpc/unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { formatOrcaSessionAddress } from '../../shared/orca-session-address'
 import { testOrcaSessionId } from '../../shared/orca-session-address-test-fixture'
-import { idOf } from './rpc/orchestration-session-caller-test-fixture'
+import { idOf, resultOf } from './rpc/orchestration-session-caller-test-fixture'
 import type { DispatchCreator } from './orchestration/db/dispatch-depth'
 import {
   COORDINATOR,
@@ -251,6 +251,39 @@ describe('a helper whose creator settles between it and the Run', () => {
     db.settleWorkerStop(middle.dispatchId)
     await answerFromRun(parked, ['Question'])
     expect(await asked).toMatchObject({ answer: 'the TOML one' })
+  })
+
+  it('re-offers the handed-back question to the Run on every replay of its settling report', async () => {
+    const { runId, middle, leaf } = await threeLevels()
+    db.createQuestion({
+      runId,
+      dispatchId: leaf.dispatchId,
+      askerHandle: LEAF,
+      question: 'Which parser?',
+      to: `dispatch:${middle.dispatchId}`
+    })
+    const done = request('orchestration.send', {
+      from: HELPER,
+      type: 'worker_done',
+      subject: 'Middle done',
+      payload: JSON.stringify({ ...middle, outcome: 'succeeded' })
+    })
+    resultOf(await dispatcher.dispatch(done))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const countMessages = () => db.db.prepare('SELECT COUNT(*) AS n FROM messages').get()
+    const before = countMessages()
+    const notify = vi.spyOn(runtime, 'notifyMessageArrived')
+
+    // The second replay reads the receipt the first replay rewrote.
+    for (const replays of [1, 2]) {
+      expect(resultOf(await dispatcher.dispatch(done))).toMatchObject({
+        mutation: { replayed: true }
+      })
+      expect(
+        notify.mock.calls.filter(([to, type]) => to === `run:${runId}` && type === 'question')
+      ).toHaveLength(replays)
+    }
+    expect(countMessages()).toEqual(before)
   })
 
   it('moves nothing on rollback; a restart offers a committed hand-back nothing woke', async () => {

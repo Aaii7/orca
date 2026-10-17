@@ -76,3 +76,20 @@ export function committedHandBackTypes(db: OrchestrationDb, handBack: MailHandBa
     .all(handBack.mailbox, JSON.stringify(handBack.messageIds))
     .map((row) => String(row.type))
 }
+
+/** The Run mail a helper creator's settlement may have handed back that still owes attention. */
+export function handBackReplayTargets(db: OrchestrationDb, dispatchId: string) {
+  return db.db
+    .prepare(
+      `SELECT DISTINCT m.to_handle AS mailbox, m.type FROM dispatch_contexts AS d
+       JOIN messages AS m ON m.to_handle = 'run:' || d.run_id
+       WHERE d.id = ? AND m.read = 0 AND m.delivery_contract = 'current_delivery'
+         AND EXISTS (SELECT 1 FROM dispatch_contexts AS h
+           WHERE h.creator_dispatch_id = d.id AND h.run_id = d.run_id)
+         AND (m.type IN ('worker_done', 'escalation', 'status') OR (m.type = 'question'
+           AND m.id IN (SELECT message_id FROM question_threads
+             WHERE run_id = d.run_id AND status = 'pending')))`
+    )
+    .all(dispatchId)
+    .map((row) => ({ to: String(row.mailbox), type: String(row.type) }))
+}
