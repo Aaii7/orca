@@ -76,8 +76,6 @@ function helperSend(type: string, subject: string, helper: { dispatchId: string;
   })
 }
 
-type InboxMessage = { id: string; subject: string; type: string }
-
 function inboxOf(inbox: Record<string, unknown>) {
   const messages = Array.isArray(inbox.messages)
     ? inbox.messages.map((message: Record<string, unknown>) => ({
