@@ -16,7 +16,12 @@ import process from 'node:process'
 import * as esbuild from 'esbuild'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..')
-const CATALOG_PATH = path.join('src', 'shared', 'rpc-contract', 'rpc-params-catalog.generated.ts')
+export const RPC_PARAMS_CATALOG_PATH = path.join(
+  'src',
+  'shared',
+  'rpc-contract',
+  'rpc-params-catalog.generated.ts'
+)
 
 // Why a root parameter: the cross-version harness derives the catalog for an extracted
 // release tree, which no longer carries it in git.
@@ -29,7 +34,7 @@ function catalogPaths(root) {
     contractDir: path.join(sharedDir, 'rpc-contract'),
     rpcDir,
     registryEntry: path.join(rpcDir, 'methods', 'index.ts'),
-    outputPath: path.join(root, CATALOG_PATH)
+    outputPath: path.join(root, RPC_PARAMS_CATALOG_PATH)
   }
 }
 
@@ -243,6 +248,6 @@ export function writeRpcParamsCatalog(root = REPO_ROOT) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
   if (writeRpcParamsCatalog()) {
-    console.log(`wrote ${posix(CATALOG_PATH)}`)
+    console.log(`wrote ${posix(RPC_PARAMS_CATALOG_PATH)}`)
   }
 }

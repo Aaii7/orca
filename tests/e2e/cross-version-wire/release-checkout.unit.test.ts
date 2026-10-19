@@ -17,6 +17,7 @@ import { lock } from 'proper-lockfile'
 import { afterEach, describe, expect, it } from 'vitest'
 import { forceTerminateProcessTree } from '@orca/process-host/process-tree-termination'
 import { spawnProcess } from '@orca/process-host'
+import { RPC_PARAMS_CATALOG_PATH } from '../../../config/scripts/generate-rpc-params-catalog.mjs'
 import {
   importReleaseCheckoutModule,
   materializeReleaseCheckout,
@@ -346,10 +347,7 @@ describe('release checkout materialization', () => {
   // HEAD stands in for any release cut after the catalog became gitignored build output.
   it('derives the RPC params catalog for a release that does not check it in', async () => {
     const checkout = await materializeReleaseCheckout('HEAD')
-    const catalog = await importReleaseCheckoutModule(
-      checkout,
-      '/src/shared/rpc-contract/rpc-params-catalog.generated.ts'
-    )
+    const catalog = await importReleaseCheckoutModule(checkout, RPC_PARAMS_CATALOG_PATH)
 
     expect(Object.keys(catalog.RPC_PARAMS_BY_METHOD ?? {})).toContain('preflight.detectAgents')
   }, 180_000)
