@@ -1,11 +1,9 @@
 import type Database from '../../../../sqlite/sync-database'
 import type { SqliteRow } from '../../../../sqlite/sqlite-statement'
 import {
-  isRemovedWorkKind,
-  REMOVED_WORK_FIELDS,
   REMOVED_WORK_PAGE_SIZE,
+  RemovedWorkEntrySchema,
   type RemovedWorkEntry,
-  type RemovedWorkFieldType,
   type ResetRemovedWork,
   type RunRemovedWork
 } from '../../../../../shared/orchestration-removed-work'
@@ -113,24 +111,6 @@ export function summarizeRemovedWorkSince(
   }
 }
 
-function decodeField(
-  value: unknown,
-  type: RemovedWorkFieldType
-): string | number | string[] | null {
-  if (type === 'int') {
-    return typeof value === 'number' ? value : null
-  }
-  if (type === 'text' || typeof value !== 'string') {
-    return text(value)
-  }
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : null
-  } catch {
-    return null
-  }
-}
-
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -144,26 +124,22 @@ function parseRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 function decodeEntry(row: SqliteRow, activeIds: ReadonlySet<string>): RemovedWorkEntry {
-  const kind = String(row.kind)
   const base = {
     seq: Number(row.seq),
     id: String(row.entity_id),
     removedAt: exposeUtcTimestamp(text(row.removed_at)) ?? ''
   }
+  const kind = String(row.kind)
   const record = parseRecord(row.record)
-  if (!record || !isRemovedWorkKind(kind)) {
-    return { ...base, kind, unreadable: true }
-  }
-  const fields = Object.fromEntries(
-    Object.entries<RemovedWorkFieldType>(REMOVED_WORK_FIELDS[kind]).map(([key, type]) => {
-      const value = decodeField(record[key], type)
-      return [key, key === 'createdAt' ? exposeUtcTimestamp(text(value)) : value]
-    })
-  )
-  const active = kind.endsWith('worker') ? { activeAtRemoval: activeIds.has(base.id) } : {}
-  const entry: unknown = { ...base, kind, ...active, ...fields }
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fields are built from REMOVED_WORK_FIELDS[kind], the same table the entry type is derived from.
-  return entry as RemovedWorkEntry
+  // Non-worker kinds strip activeAtRemoval; an unknown kind or bad record reads as unreadable.
+  const parsed = RemovedWorkEntrySchema.safeParse({
+    ...record,
+    ...base,
+    kind,
+    createdAt: exposeUtcTimestamp(text(record?.createdAt)),
+    activeAtRemoval: activeIds.has(base.id)
+  })
+  return record && parsed.success ? parsed.data : { ...base, kind, unreadable: true }
 }
 
 /** Never throws for bookkeeping reasons: on a failed read run-show simply omits the field. */

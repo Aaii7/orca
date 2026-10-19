@@ -1,94 +1,104 @@
-/** Record fields kept for each kind of removed orchestration work; 'list' is an array of ids. */
-export const REMOVED_WORK_FIELDS = {
+import { z } from 'zod'
+
+// Tolerant fields: a missing or mistyped value reads as null instead of failing the entry.
+const text = z.string().nullable().catch(null)
+/** Stored as an integer; every other record field is stored as text. */
+export const REMOVED_WORK_INT_FIELD = z.number().nullable().catch(null)
+const int = REMOVED_WORK_INT_FIELD
+const idList = z.preprocess(parseJsonText, z.array(z.string()).nullable()).catch(null)
+
+function parseJsonText(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return null
+  }
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+/** Lineage fields kept for each kind of removed orchestration work. */
+export const REMOVED_WORK_LINEAGE_FIELDS = {
   task: {
-    parentTaskId: 'text',
-    title: 'text',
-    createdByHandle: 'text',
-    createdByPaneKey: 'text',
-    deps: 'list',
-    status: 'text',
-    createdAt: 'text'
+    parentTaskId: text,
+    title: text,
+    createdByHandle: text,
+    createdByPaneKey: text,
+    deps: idList,
+    status: text,
+    createdAt: text
   },
   dispatch: {
-    taskId: 'text',
-    retryOfDispatchId: 'text',
-    creatorDispatchId: 'text',
-    creatorHandle: 'text',
-    creatorPaneKey: 'text',
-    creatorOrcaSessionId: 'text',
-    assigneeHandle: 'text',
-    assigneePaneKey: 'text',
-    assigneeOrcaSessionId: 'text',
-    hostScope: 'text',
-    depth: 'int',
-    status: 'text',
+    taskId: text,
+    retryOfDispatchId: text,
+    creatorDispatchId: text,
+    creatorHandle: text,
+    creatorPaneKey: text,
+    creatorOrcaSessionId: text,
+    assigneeHandle: text,
+    assigneePaneKey: text,
+    assigneeOrcaSessionId: text,
+    hostScope: text,
+    depth: int,
+    status: text,
     // Null when no exit was ever recorded; an exit Orca could not certify is saved as 'unknown'.
-    terminationReason: 'text',
-    createdAt: 'text'
+    terminationReason: text,
+    createdAt: text
   },
-  worker: {
-    state: 'text',
-    stage: 'text',
-    worktreeId: 'text',
-    terminalHandle: 'text',
-    createdAt: 'text'
-  },
+  worker: { state: text, stage: text, worktreeId: text, terminalHandle: text, createdAt: text },
   terminal: {
-    originDispatchId: 'text',
-    ownerDispatchId: 'text',
-    priorOwnerDispatchIds: 'list',
-    terminalHandle: 'text',
-    paneKey: 'text',
-    worktreeId: 'text',
-    hostScope: 'text',
-    ownershipState: 'text',
-    releaseState: 'text',
-    createdAt: 'text'
+    originDispatchId: text,
+    ownerDispatchId: text,
+    priorOwnerDispatchIds: idList,
+    terminalHandle: text,
+    paneKey: text,
+    worktreeId: text,
+    hostScope: text,
+    ownershipState: text,
+    releaseState: text,
+    createdAt: text
   },
   remote_worker: {
-    taskId: 'text',
-    homePeerFingerprint: 'text',
-    state: 'text',
-    stage: 'text',
-    worktreeId: 'text',
-    terminalHandle: 'text',
-    paneKey: 'text',
-    depth: 'int',
-    createdAt: 'text'
+    taskId: text,
+    homePeerFingerprint: text,
+    state: text,
+    stage: text,
+    worktreeId: text,
+    terminalHandle: text,
+    paneKey: text,
+    depth: int,
+    createdAt: text
   },
   federated_worker: {
-    environmentId: 'text',
-    environmentName: 'text',
-    remoteWorktreeId: 'text',
-    remoteTerminalHandle: 'text',
-    dispatchStatus: 'text',
-    createdAt: 'text'
+    environmentId: text,
+    environmentName: text,
+    remoteWorktreeId: text,
+    remoteTerminalHandle: text,
+    dispatchStatus: text,
+    createdAt: text
   }
-} as const
-
-export type RemovedWorkKind = keyof typeof REMOVED_WORK_FIELDS
-export function isRemovedWorkKind(kind: string): kind is RemovedWorkKind {
-  return Object.hasOwn(REMOVED_WORK_FIELDS, kind)
 }
-export type RemovedWorkFieldType = 'text' | 'int' | 'list'
-type FieldValue<T> = T extends 'int'
-  ? number | null
-  : T extends 'list'
-    ? string[] | null
-    : string | null
-type WorkerKind = 'worker' | 'remote_worker' | 'federated_worker'
+
+export type RemovedWorkKind = keyof typeof REMOVED_WORK_LINEAGE_FIELDS
+
+const entryBase = { seq: z.number(), id: z.string(), removedAt: z.string() }
+const workerBase = { ...entryBase, activeAtRemoval: z.boolean() }
+const lineage = REMOVED_WORK_LINEAGE_FIELDS
+
+/** One listed entry: the stored record checked against its kind's fields. */
+export const RemovedWorkEntrySchema = z.discriminatedUnion('kind', [
+  z.object({ ...entryBase, kind: z.literal('task'), ...lineage.task }),
+  z.object({ ...entryBase, kind: z.literal('dispatch'), ...lineage.dispatch }),
+  z.object({ ...workerBase, kind: z.literal('worker'), ...lineage.worker }),
+  z.object({ ...entryBase, kind: z.literal('terminal'), ...lineage.terminal }),
+  z.object({ ...workerBase, kind: z.literal('remote_worker'), ...lineage.remote_worker }),
+  z.object({ ...workerBase, kind: z.literal('federated_worker'), ...lineage.federated_worker })
+])
 
 type RemovedWorkEntryBase = { seq: number; id: string; removedAt: string }
 export type RemovedWorkEntry =
-  | {
-      [K in RemovedWorkKind]: RemovedWorkEntryBase & {
-        kind: K
-      } & (K extends WorkerKind ? { activeAtRemoval: boolean } : unknown) & {
-          -readonly [F in keyof (typeof REMOVED_WORK_FIELDS)[K]]: FieldValue<
-            (typeof REMOVED_WORK_FIELDS)[K][F]
-          >
-        }
-    }[RemovedWorkKind]
+  | z.infer<typeof RemovedWorkEntrySchema>
   | (RemovedWorkEntryBase & { kind: string; unreadable: true })
 
 /** `orchestration.runShow` result `removedWork`: constant size unless entries were requested. */

@@ -1,6 +1,7 @@
 import type Database from '../../../../sqlite/sync-database'
 import {
-  REMOVED_WORK_FIELDS,
+  REMOVED_WORK_INT_FIELD,
+  REMOVED_WORK_LINEAGE_FIELDS,
   type RemovedWorkKind
 } from '../../../../../shared/orchestration-removed-work'
 
@@ -51,7 +52,7 @@ type CaptureSpec<K extends RemovedWorkKind> = {
   table: string
   entityIdSql: string
   runIdSql: string
-  fields: Record<keyof (typeof REMOVED_WORK_FIELDS)[K], string>
+  fields: Record<keyof (typeof REMOVED_WORK_LINEAGE_FIELDS)[K], string>
 }
 
 // Lineage columns only: spec, result, hashes, start options, effects and errors stay out.
@@ -170,9 +171,10 @@ export const DROP_REMOVED_WORK_TRIGGERS_SQL = CAPTURE_KINDS.map(
 // CAST keeps a stray BLOB from throwing in json_object; JSON columns are copied as raw text.
 function captureTriggerSql(kind: RemovedWorkKind): string {
   const spec = CAPTURE_SPECS[kind]
-  const types: Record<string, string> = REMOVED_WORK_FIELDS[kind]
+  const lineageFields: Record<string, unknown> = REMOVED_WORK_LINEAGE_FIELDS[kind]
   const fields = Object.entries<string>(spec.fields).map(
-    ([key, sql]) => `'${key}', CAST(${sql} AS ${types[key] === 'int' ? 'INTEGER' : 'TEXT'})`
+    ([key, sql]) =>
+      `'${key}', CAST(${sql} AS ${lineageFields[key] === REMOVED_WORK_INT_FIELD ? 'INTEGER' : 'TEXT'})`
   )
   return `CREATE TRIGGER ${triggerName(kind)}
 AFTER DELETE ON ${spec.table}
