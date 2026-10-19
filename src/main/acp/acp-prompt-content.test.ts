@@ -55,11 +55,17 @@ describe('ACP prompt content', () => {
     ])
   })
 
-  it('refuses an image when the agent takes none', async () => {
-    expect(await refusal(message({ type: 'image-ref', path: pngPath }), false)).toMatchObject({
-      kind: 'attachmentInvalid',
-      attachment: { reason: 'unsupportedType' }
-    })
+  it("sends an image's path to an agent that takes none, refusing one with no file", async () => {
+    const spaced = join(dir, 'my shot.png')
+    await expect(
+      acpPromptBlocks(message({ type: 'image-ref', url: pathToFileURL(spaced).href }), false)
+    ).resolves.toEqual([{ type: 'text', text: `@"${spaced}"` }])
+    expect(
+      await refusal(
+        message({ type: 'image-ref', url: `data:image/png;base64,${PNG.toString('base64')}` }),
+        false
+      )
+    ).toMatchObject({ kind: 'attachmentInvalid', attachment: { reason: 'unsupportedType' } })
   })
 
   it('refuses what it cannot read or send before anything leaves Orca', async () => {

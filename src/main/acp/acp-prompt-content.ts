@@ -1,5 +1,6 @@
-// A person's message as an ACP prompt. Images go as the protocol's image blocks, and only to an
-// agent that advertised them; each is checked and read before anything reaches the agent.
+// A person's message as an ACP prompt. Images go as the protocol's image blocks, each checked and
+// read before anything reaches the agent, and only to an agent that advertised them; any other
+// agent gets the image's path.
 
 import { extname, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +13,7 @@ import {
   agentSessionFailureWords,
   type AgentJournalDispatchRejection
 } from '../../shared/agent-session-failure-words'
+import { formatNativeChatFileReference } from '../../shared/agent-image-paste'
 import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
 import { IMAGE_FILE_MIME_TYPES } from '../../shared/image-file-extensions'
 import type { NativeChatImageRefBlock } from '../../shared/native-chat-types'
@@ -46,6 +48,19 @@ function attachmentProblem(attachment: AgentSessionAttachmentProblem): AcpPrompt
   return new AcpPromptContentError(agentSessionFailureFact('attachmentInvalid', { attachment }))
 }
 
+/** The image's absolute path on this host, from its path or a `file:` URL. */
+function hostImagePath(block: NativeChatImageRefBlock): string | null {
+  let path = block.path
+  if (!path && block.url?.startsWith('file:')) {
+    try {
+      path = fileURLToPath(block.url)
+    } catch {
+      return null
+    }
+  }
+  return path && isAbsolute(path) ? path : null
+}
+
 async function imageBlock(
   block: NativeChatImageRefBlock,
   remainingBytes: number,
@@ -70,15 +85,8 @@ async function imageBlock(
     }
     return { block: { type: 'image', mimeType: match[1], data: match[2] }, bytes }
   }
-  let path = block.path
-  if (!path && block.url?.startsWith('file:')) {
-    try {
-      path = fileURLToPath(block.url)
-    } catch {
-      throw attachmentProblem({ reason: 'noSource' })
-    }
-  }
-  if (!path || !isAbsolute(path)) {
+  const path = hostImagePath(block)
+  if (!path) {
     throw attachmentProblem({ reason: 'noSource' })
   }
   const mimeType = IMAGE_FILE_MIME_TYPES[extname(path).toLowerCase()]
@@ -118,8 +126,17 @@ export async function acpPromptBlocks(
       blocks.push({ type: 'text', text: block.text })
       continue
     }
-    if (block.type !== 'image-ref' || !acceptsImages) {
+    if (block.type !== 'image-ref') {
       throw attachmentProblem({ reason: 'unsupportedType' })
+    }
+    if (!acceptsImages) {
+      // As the composer would have written it, had it known before the agent's start answered.
+      const path = hostImagePath(block)
+      if (!path) {
+        throw attachmentProblem({ reason: 'unsupportedType' })
+      }
+      blocks.push({ type: 'text', text: formatNativeChatFileReference(path) })
+      continue
     }
     imageCount += 1
     if (imageCount > MAX_IMAGE_COUNT) {
@@ -148,7 +165,7 @@ function isWithheldCommand(body: AgentJournalMessageItem, withheld: readonly str
 export async function acpDispatchPrompt(
   body: AgentJournalMessageItem,
   session: {
-    spec: Pick<AcpLaunchSpec, 'agent' | 'imagePrompts' | 'dialect'>
+    spec: Pick<AcpLaunchSpec, 'agent' | 'dialect'>
     connection: Pick<AcpStructuredConnection, 'initialize'>
   }
 ): Promise<ContentBlock[] | AgentJournalDispatchRejection> {
