@@ -22,7 +22,7 @@ export const REMOVED_WORK_FIELDS = {
     hostScope: 'text',
     depth: 'int',
     status: 'text',
-    // Null when unknown: the Dispatch ended with no certified cause, or before this key existed.
+    // Null when no exit was ever recorded; an exit Orca could not certify is saved as 'unknown'.
     terminationReason: 'text',
     createdAt: 'text'
   },

@@ -188,7 +188,8 @@ function readRunRemovedWorkPage(
   runId: string,
   options: { removed?: boolean | undefined; cursor?: string | undefined }
 ): RunRemovedWork | undefined {
-  // A moved marker sorts after every Run that existed then (see the capture install), so >= is exact.
+  // A moved marker sorts after every non-legacy Run that existed then (the empty legacy Run is
+  // excluded on purpose; see the capture install), so >= is exact.
   const coverage = db
     .prepare(
       `SELECT recorded_since,
