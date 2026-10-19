@@ -46,7 +46,8 @@ function formatEntry(entry: RemovedWorkEntry): string {
         : `terminal ${entry.id} ${entry.terminalHandle ?? ''} owned by ${entry.ownerDispatchId ?? 'unknown'}: ${entry.releaseState === 'released' ? 'released' : 'not released'}`
     case 'federated_worker':
       return `federated worker ${entry.id}${part(' on ', entry.environmentName)}${part(' in ', entry.remoteTerminalHandle)}: ${entry.dispatchStatus ?? 'unknown'} when removed${entry.activeAtRemoval ? ', may still be running' : ''}`
-    default: {
+    case 'worker':
+    case 'remote_worker': {
       const label = entry.kind === 'remote_worker' ? 'remote worker' : 'worker'
       return `${label} ${entry.id}${part(' in ', entry.terminalHandle)}${entry.worktreeId ? ` (worktree ${entry.worktreeId})` : ''}: ${entry.state ?? 'unknown'} when removed${entry.activeAtRemoval ? ', may still be running' : ''}`
     }

@@ -5,7 +5,11 @@ const text = z.string().nullable().catch(null)
 /** Stored as an integer; every other record field is stored as text. */
 export const REMOVED_WORK_INT_FIELD = z.number().nullable().catch(null)
 const int = REMOVED_WORK_INT_FIELD
-const idList = z.preprocess(parseJsonText, z.array(z.string()).nullable()).catch(null)
+// Drops non-string elements and keeps the rest; text that isn't JSON reads as null.
+const idList = z
+  .preprocess(parseJsonText, z.array(z.unknown()).nullable())
+  .transform((items) => items?.filter((item): item is string => typeof item === 'string') ?? null)
+  .catch(null)
 
 function parseJsonText(value: unknown): unknown {
   if (typeof value !== 'string') {
