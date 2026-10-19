@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { parse } from 'yaml'
@@ -367,7 +367,10 @@ async function writeArtifacts(artifacts) {
       continue
     }
     await mkdir(path.dirname(artifact.path), { recursive: true })
-    await writeFile(artifact.path, artifact.content, 'utf8')
+    // Why rename: a concurrent tsc, vitest or dev watcher never reads a half-written module.
+    const staged = `${artifact.path}.${process.pid}.tmp`
+    await writeFile(staged, artifact.content, 'utf8')
+    await rename(staged, artifact.path)
   }
 }
 

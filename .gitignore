@@ -24,8 +24,8 @@ node_modules
 # Build output
 dist/
 # Derived from in-repo source by build:packages.
-/src/shared/rpc-contract/rpc-params-catalog.generated.ts
-/src/cli/bundled-skill-guides.ts
+/src/shared/rpc-contract/rpc-params-catalog.generated.ts*
+/src/cli/bundled-skill-guides.ts*
 dist-electron/
 out/
 /build/

@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync
 } from 'node:fs'
@@ -242,7 +243,10 @@ export function writeRpcParamsCatalog(root = REPO_ROOT) {
   if (existsSync(paths.outputPath) && readFileSync(paths.outputPath, 'utf8') === generated) {
     return false
   }
-  writeFileSync(paths.outputPath, generated)
+  // Why rename: a concurrent tsc, vitest or dev watcher never reads a half-written module.
+  const staged = `${paths.outputPath}.${process.pid}.tmp`
+  writeFileSync(staged, generated)
+  renameSync(staged, paths.outputPath)
   return true
 }
 
