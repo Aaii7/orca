@@ -107,6 +107,8 @@ export type RunRemovedWork = {
 /** `orchestration.reset --tasks` result `removed`: what this reset removed, across every Run. */
 export type ResetRemovedWork = {
   runs: number
+  // Absent from hosts that predate it.
+  runIds?: string[]
   tasks: number
   dispatches: number
   workers: number

@@ -224,6 +224,9 @@ describe('removed work CLI text', () => {
     expect(formatRemovedWorkListing('run_1', undefined)).toBe(
       'This Orca host does not keep a record of removed work.'
     )
+    expect(formatRemovedWorkListing('run_1', { ...summary, entries: [] }, '99')).toBe(
+      'No more removed work in this Run after cursor 99.'
+    )
     const entries = [
       {
         seq: 1,
@@ -244,7 +247,15 @@ describe('removed work CLI text', () => {
         state: 'ready',
         activeAtRemoval: true
       },
-      { seq: 3, kind: 'dispatch', id: 'ctx_y', removedAt: '', unreadable: true }
+      { seq: 3, kind: 'dispatch', id: 'ctx_y', removedAt: '', unreadable: true },
+      {
+        seq: 4,
+        kind: 'terminal',
+        id: 'wtr_x',
+        removedAt: '',
+        terminalHandle: 'term_b',
+        ownershipState: 'user_owned'
+      }
     ]
     expect(
       formatRemovedWorkListing('run_1', {
@@ -259,6 +270,7 @@ describe('removed work CLI text', () => {
         'task task_x "Build", parent task_y, created by term_a',
         'worker ctx_x in term_b (worktree w): ready when removed, may still be running',
         'dispatch ctx_y: record unreadable',
+        'terminal wtr_x term_b: taken over by the user',
         `More: ${list} --cursor 3`
       ].join('\n')
     )
@@ -269,10 +281,32 @@ describe('removed work CLI text', () => {
     expect(
       formatResetResult({
         reset: 'tasks',
-        removed: { runs: 1, tasks: 3, dispatches: 4, workers: 2, possiblyRunning: 1 }
+        removed: {
+          runs: 1,
+          runIds: ['run_1'],
+          tasks: 3,
+          dispatches: 4,
+          workers: 2,
+          possiblyRunning: 1
+        }
       })
     ).toBe(
-      'Reset: tasks. Removed 3 tasks, 4 dispatches and 2 workers from 1 Run. 1 worker may still be running: reset stops tracking workers but does not stop them. List what was removed: orca orchestration run-show --id <run_id> --removed'
+      'Reset: tasks. Removed 3 tasks, 4 dispatches and 2 workers from 1 Run. 1 worker may still be running: reset stops tracking workers but does not stop them. List what was removed: orca orchestration run-show --id run_1 --removed'
+    )
+    expect(
+      formatResetResult({
+        reset: 'tasks',
+        removed: {
+          runs: 2,
+          runIds: ['run_1', 'run_2'],
+          tasks: 1,
+          dispatches: 0,
+          workers: 0,
+          possiblyRunning: 0
+        }
+      })
+    ).toBe(
+      'Reset: tasks. Removed 1 task, 0 dispatches and 0 workers from 2 Runs. Runs: run_1, run_2. List what was removed in one: orca orchestration run-show --removed --id RUN_ID'
     )
   })
 })

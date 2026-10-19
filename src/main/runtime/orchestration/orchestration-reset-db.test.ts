@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LEGACY_RUN_ID, OrchestrationDb } from './db'
 import { readRunRemovedWork } from './db/reset/removed-orchestration-work-read'
+import { settleWorkerForCompletedDispatch } from './db/worker-dispatch/worker-dispatch-settlement'
 
 describe('OrchestrationDb reset scopes', () => {
   let db: OrchestrationDb | undefined
@@ -174,9 +175,15 @@ describe('OrchestrationDb reset scopes', () => {
   it('resetTasks records who created each removed Task, Dispatch and worker', () => {
     const state = createState()
     const { child, childDispatch, remote, remoteTerminal } = addChildWork(state)
+    // A finished worker is settled without closing its agent: its owned terminal is never released.
+    const childId = childDispatch.dispatch.id
+    db!.db.exec(`UPDATE worker_dispatches SET state = 'ready' WHERE dispatch_id = '${childId}'`)
+    db!.db.exec(`UPDATE dispatch_contexts SET status = 'completed' WHERE id = '${childId}'`)
+    settleWorkerForCompletedDispatch(db!.db, childId)
 
     expect(db!.resetTasks()).toEqual({
       runs: 1,
+      runIds: [state.run.id],
       tasks: 2,
       dispatches: 2,
       workers: 3,
@@ -185,7 +192,6 @@ describe('OrchestrationDb reset scopes', () => {
 
     const shown = readRunRemovedWork(db!.db, state.run.id, { removed: true })
     expect(shown).toMatchObject({
-      coverage: 'complete',
       tasks: 2,
       dispatches: 2,
       workers: 3,
@@ -209,7 +215,8 @@ describe('OrchestrationDb reset scopes', () => {
         }),
         expect.objectContaining({
           kind: 'worker',
-          id: childDispatch.dispatch.id,
+          id: childId,
+          state: 'abandoned',
           activeAtRemoval: true
         }),
         expect.objectContaining({ kind: 'remote_worker', id: remote.dispatch_id }),
@@ -226,6 +233,12 @@ describe('OrchestrationDb reset scopes', () => {
         })
       ])
     )
+    // The federated worker's local worker row is folded into its one line, matching the count.
+    expect(
+      shown?.entries?.filter(
+        (entry) => entry.id === state.started.dispatch.id && entry.kind !== 'dispatch'
+      )
+    ).toHaveLength(1)
   })
 
   it('records raw deletes from every lineage table, as an older binary would run them', () => {

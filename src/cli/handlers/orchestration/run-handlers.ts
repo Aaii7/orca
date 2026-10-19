@@ -87,7 +87,7 @@ export const ORCHESTRATION_RUN_HANDLERS: Record<string, CommandHandler> = {
     })
     printResult(result, json, (r) =>
       removed
-        ? formatRemovedWorkListing(r.run.id, r.removedWork)
+        ? formatRemovedWorkListing(r.run.id, r.removedWork, cursor)
         : `${r.run.id}${r.run.legacy ? ' [legacy, inspect only]' : ''} ${r.run.objective}\n` +
           `consumer generation ${r.run.consumer_generation}; created ${r.run.created_at}` +
           `${formatRunRemovedWorkLine(r.run.id, r.removedWork)}`

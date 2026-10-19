@@ -41,7 +41,9 @@ function formatEntry(entry: RemovedWorkEntry): string {
       return `dispatch ${entry.id}${part(' for ', entry.taskId)}${part(', created by ', creator)}${part(', assigned to ', entry.assigneeHandle)}${part(', status ', entry.status)}`
     }
     case 'terminal':
-      return `terminal ${entry.id} ${entry.terminalHandle ?? ''} owned by ${entry.ownerDispatchId ?? 'unknown'}: ${entry.releaseState === 'released' ? 'released' : 'not released'}`
+      return entry.ownershipState === 'user_owned'
+        ? `terminal ${entry.id} ${entry.terminalHandle ?? ''}: taken over by the user`
+        : `terminal ${entry.id} ${entry.terminalHandle ?? ''} owned by ${entry.ownerDispatchId ?? 'unknown'}: ${entry.releaseState === 'released' ? 'released' : 'not released'}`
     case 'federated_worker':
       return `federated worker ${entry.id}${part(' on ', entry.environmentName)}${part(' in ', entry.remoteTerminalHandle)}: ${entry.dispatchStatus ?? 'unknown'} when removed${entry.activeAtRemoval ? ', may still be running' : ''}`
     default: {
@@ -52,13 +54,19 @@ function formatEntry(entry: RemovedWorkEntry): string {
 }
 
 /** run-show --removed: one line per removed entity, then the next-page hint. */
-export function formatRemovedWorkListing(runId: string, removed?: RunRemovedWork): string {
+export function formatRemovedWorkListing(
+  runId: string,
+  removed?: RunRemovedWork,
+  cursor?: string
+): string {
   if (!removed) {
     return 'This Orca host does not keep a record of removed work.'
   }
   const entries = removed.entries ?? []
   if (entries.length === 0) {
-    return `No removed work recorded for this Run${partialNote(removed)}.`
+    return cursor
+      ? `No more removed work in this Run after cursor ${cursor}.`
+      : `No removed work recorded for this Run${partialNote(removed)}.`
   }
   const lines = [`Removed work in ${runId}${partialNote(removed)}`, ...entries.map(formatEntry)]
   if (removed.page?.nextCursor) {
@@ -80,6 +88,15 @@ export function formatResetResult(result: { reset: string; removed?: ResetRemove
   return (
     `Reset: ${result.reset}. Removed ${count(removed.tasks, 'task')}, ` +
     `${count(removed.dispatches, 'dispatch', 'dispatches')} and ${count(removed.workers, 'worker')} ` +
-    `from ${count(removed.runs, 'Run')}.${runningNote} List what was removed: ${listCommand('<run_id>')}`
+    `from ${count(removed.runs, 'Run')}.${runningNote}${listHint(removed.runIds ?? [])}`
   )
+}
+
+function listHint(runIds: readonly string[]): string {
+  if (runIds.length === 1) {
+    return ` List what was removed: ${listCommand(runIds[0])}`
+  }
+  return runIds.length > 1
+    ? ` Runs: ${runIds.join(', ')}. List what was removed in one: orca orchestration run-show --removed --id RUN_ID`
+    : ''
 }

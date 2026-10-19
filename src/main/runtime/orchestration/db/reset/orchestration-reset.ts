@@ -8,16 +8,12 @@ import {
 
 // ── Lifecycle ──
 
-/** Returns the removed-work watermark read inside the transaction, or undefined if it can't be read. */
-export function runResetTransaction(this: OrchestrationDb, statements: string): number | undefined {
+/** Returns the removed-work watermark, read inside the transaction so the reply counts only this reset. */
+export function runResetTransaction(this: OrchestrationDb, statements: string): number {
   this.db.exec('BEGIN IMMEDIATE')
   try {
-    let watermark: number | undefined
-    try {
-      watermark = readRemovedWorkWatermark(this.db)
-    } catch {
-      // Why: the watermark only feeds the reply summary; it must never fail the reset.
-    }
+    // Why unguarded: an error that ends the transaction must roll the whole reset back, not let the deletes autocommit.
+    const watermark = readRemovedWorkWatermark(this.db)
     this.db.exec(statements)
     this.db.exec('COMMIT')
     return watermark
