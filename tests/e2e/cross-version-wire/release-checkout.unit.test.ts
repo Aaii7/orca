@@ -345,8 +345,13 @@ describe('release checkout materialization', () => {
   }, 180_000)
 
   // HEAD stands in for any release cut after the catalog became gitignored build output.
+  // A throwaway cache under the repo keeps package resolution without keeping a tree per commit.
   it('derives the RPC params catalog for a release that does not check it in', async () => {
-    const checkout = await materializeReleaseCheckout('HEAD')
+    const parent = join(REPO_ROOT, 'tests', 'e2e', '.cross-version-checkouts')
+    mkdirSync(parent, { recursive: true })
+    const cacheRoot = mkdtempSync(join(parent, 'head-'))
+    temporaryRoots.push(cacheRoot)
+    const checkout = await materializeReleaseCheckout('HEAD', { cacheRoot })
     const catalog = await importReleaseCheckoutModule(checkout, RPC_PARAMS_CATALOG_PATH)
 
     expect(Object.keys(catalog.RPC_PARAMS_BY_METHOD ?? {})).toContain('preflight.detectAgents')

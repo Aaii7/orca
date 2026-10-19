@@ -40,7 +40,7 @@ function catalogPaths(root) {
 
 // Why mkdirSync first: out/ is gitignored and absent on a fresh checkout. Why not
 // os.tmpdir(): the bundle keeps its node_modules deps external, so it has to sit
-// under the tree to resolve them.
+// under the tree, and the tree under a directory whose node_modules resolves them.
 function scratchDir(root, prefix) {
   const out = path.join(root, 'out')
   mkdirSync(out, { recursive: true })
@@ -247,7 +247,10 @@ export function writeRpcParamsCatalog(root = REPO_ROOT) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
-  if (writeRpcParamsCatalog()) {
+  const rootFlag = process.argv.indexOf('--root')
+  if (
+    writeRpcParamsCatalog(rootFlag === -1 ? REPO_ROOT : path.resolve(process.argv[rootFlag + 1]))
+  ) {
     console.log(`wrote ${posix(RPC_PARAMS_CATALOG_PATH)}`)
   }
 }
