@@ -343,6 +343,17 @@ describe('release checkout materialization', () => {
     expect(() => callExport('parseDenseRipgrepMatchJson', '{"type":', 1, 8)).toThrow()
   }, 180_000)
 
+  // HEAD stands in for any release cut after the catalog became gitignored build output.
+  it('derives the RPC params catalog for a release that does not check it in', async () => {
+    const checkout = await materializeReleaseCheckout('HEAD')
+    const catalog = await importReleaseCheckoutModule(
+      checkout,
+      '/src/shared/rpc-contract/rpc-params-catalog.generated.ts'
+    )
+
+    expect(Object.keys(catalog.RPC_PARAMS_BY_METHOD ?? {})).toContain('preflight.detectAgents')
+  }, 180_000)
+
   it('keeps an import live while another colliding release label materializes', async () => {
     // Squash-merged history has no merge parents; create two distinct refs with colliding labels.
     const scope = `refs/orca-checkout-test/${randomUUID()}`

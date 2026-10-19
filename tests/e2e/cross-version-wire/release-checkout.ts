@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { copyFile, mkdir, rename } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { writeRpcParamsCatalog } from '../../../config/scripts/generate-rpc-params-catalog.mjs'
 import { selectLatestStableReleaseTag } from '../../../config/scripts/stable-release-tags.mjs'
 import {
   populateReleaseCheckoutSource,
@@ -171,6 +173,10 @@ export async function materializeReleaseCheckout(
         options.sharedCacheRoot ??
         (await resolveSharedReleaseCacheRoot(REPO_ROOT, options.cacheRoot))
       await populateReleaseCheckoutSource(REPO_ROOT, staging, commit, sharedCacheRoot)
+      // Why: the catalog is build output, so newer releases don't carry it in git.
+      if (!existsSync(join(staging, 'src/shared/rpc-contract/rpc-params-catalog.generated.ts'))) {
+        writeRpcParamsCatalog(staging)
+      }
     }
   })
   return { ref, commit, label, root }

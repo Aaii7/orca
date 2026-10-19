@@ -250,7 +250,6 @@ it('pins every foreground and background step to its selected phase', () => {
     ['Enforce legacy relay fence ratchet', staticPhase],
     ['Check Node runtime pin', staticPhase],
     ['Decide whether the orcad terminal smoke runs', staticPhase],
-    ['Verify the generated RPC params catalog', staticPhase],
     ['Verify the generated ACP protocol schema', staticPhase],
     ['Verify bundled skill guides', staticPhase],
     ['Verify skill freshness manifest', staticPhase],
