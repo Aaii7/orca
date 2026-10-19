@@ -7,6 +7,11 @@ vi.mock('../format', () => ({ printResult: vi.fn() }))
 vi.mock('../selectors', () => ({ getTerminalHandle: getTerminalHandleMock }))
 
 import { ORCHESTRATION_HANDLERS } from './orchestration'
+import { RuntimeClient } from '../runtime-client'
+import {
+  RemovedWorkEntrySchema,
+  type RemovedWorkEntry
+} from '../../shared/orchestration-removed-work'
 import {
   formatRemovedWorkListing,
   formatResetResult,
@@ -204,16 +209,23 @@ describe('removed work CLI text', () => {
     expect(formatRunRemovedWorkLine('run_1', summary)).toBe(
       `\nremoved work: 2 tasks, 1 dispatch, 1 worker (1 may still be running); removals before 2026-10-19T00:00:00Z were not recorded. List it: ${list}`
     )
-    callMock.mockReset().mockResolvedValue({ result: { run: { id: 'run_1' } } })
+    const client = new RuntimeClient()
+    const call = vi.spyOn(client, 'call').mockResolvedValue({
+      id: 'request',
+      ok: true,
+      result: { run: { id: 'run_1' } },
+      _meta: { runtimeId: 'runtime-1' }
+    })
     await ORCHESTRATION_HANDLERS['orchestration run-show']({
       flags: new Map([
         ['id', 'run_1'],
         ['cursor', '200']
       ]),
-      client: { call: callMock },
+      client,
+      cwd: '/tmp',
       json: true
-    } as never)
-    expect(callMock).toHaveBeenCalledWith('orchestration.runShow', {
+    })
+    expect(call).toHaveBeenCalledWith('orchestration.runShow', {
       id: 'run_1',
       removed: true,
       cursor: '200'
@@ -227,8 +239,8 @@ describe('removed work CLI text', () => {
     expect(formatRemovedWorkListing('run_1', { ...summary, entries: [] }, '99')).toBe(
       'No more removed work in this Run after cursor 99.'
     )
-    const entries = [
-      {
+    const entries: RemovedWorkEntry[] = [
+      RemovedWorkEntrySchema.parse({
         seq: 1,
         kind: 'task',
         id: 'task_x',
@@ -236,8 +248,8 @@ describe('removed work CLI text', () => {
         title: 'Build',
         parentTaskId: 'task_y',
         createdByHandle: 'term_a'
-      },
-      {
+      }),
+      RemovedWorkEntrySchema.parse({
         seq: 2,
         kind: 'worker',
         id: 'ctx_x',
@@ -246,22 +258,22 @@ describe('removed work CLI text', () => {
         worktreeId: 'w',
         state: 'ready',
         activeAtRemoval: true
-      },
+      }),
       { seq: 3, kind: 'dispatch', id: 'ctx_y', removedAt: '', unreadable: true },
-      {
+      RemovedWorkEntrySchema.parse({
         seq: 4,
         kind: 'terminal',
         id: 'wtr_x',
         removedAt: '',
         terminalHandle: 'term_b',
         ownershipState: 'user_owned'
-      }
+      })
     ]
     expect(
       formatRemovedWorkListing('run_1', {
         ...summary,
         coverage: 'complete',
-        entries: entries as never,
+        entries,
         page: { hasMore: true, nextCursor: '3' }
       })
     ).toBe(
