@@ -87,6 +87,7 @@ const CAPTURE_SPECS: { [K in RemovedWorkKind]: CaptureSpec<K> } = {
       hostScope: 'OLD.host_scope',
       depth: 'OLD.depth',
       status: 'OLD.status',
+      terminationReason: 'OLD.termination_reason',
       createdAt: 'OLD.created_at'
     }
   },
@@ -192,10 +193,14 @@ export function isRemovedWorkCaptureIntact(db: Database.Database): boolean {
   return Number(row?.n) === CAPTURE_KINDS.length
 }
 
+// A moved marker sorts after every existing non-legacy Run, so none of them reads complete.
+const MOVED_RECORDED_SINCE_SQL = `MAX(datetime('now'), COALESCE(
+  (SELECT datetime(MAX(created_at), '+1 second') FROM runs WHERE legacy = 0), ''))`
+
 /**
- * Recreated on every open, after migrate: the bodies name columns, so a body stamped once would keep
- * an older build's columns. Coverage moves to now whenever any trigger was missing before this open,
- * so a record can never claim removals it did not see.
+ * Recreated on every open, after every open step that creates Runs and before any that deletes work:
+ * the bodies name columns, so a body stamped once would keep an older build's columns. Coverage moves
+ * whenever any trigger was missing before this open, so a record never claims removals it did not see.
  */
 export function installRemovedWorkCapture(db: Database.Database, captureWasIntact: boolean): void {
   db.exec('BEGIN IMMEDIATE')
@@ -204,7 +209,8 @@ export function installRemovedWorkCapture(db: Database.Database, captureWasIntac
       ${DROP_REMOVED_WORK_TRIGGERS_SQL}
       ${CAPTURE_KINDS.map(captureTriggerSql).join('\n')}
       INSERT OR ${captureWasIntact ? 'IGNORE' : 'REPLACE'} INTO removed_orchestration_work_coverage
-        (singleton, recorded_since) VALUES (1, datetime('now'));
+        (singleton, recorded_since)
+        VALUES (1, ${captureWasIntact ? "datetime('now')" : MOVED_RECORDED_SINCE_SQL});
     `)
     db.exec('COMMIT')
   } catch (error) {

@@ -38,9 +38,10 @@ class OrchestrationDbCore {
     // Read before migrate, which drops the capture triggers it may need to rebuild around.
     const removedWorkCaptureWasIntact = isRemovedWorkCaptureIntact(this.db)
     migrate.call(this as unknown as OrchestrationDb)
-    installRemovedWorkCapture(this.db, removedWorkCaptureWasIntact)
     createRunCoordinatorAddressTriggers(this.db)
     backfillFederatedStubHomeRuns(this.db)
+    // After every open step that creates Runs, before any step that deletes work.
+    installRemovedWorkCapture(this.db, removedWorkCaptureWasIntact)
     backfillStructuredWorkerOrcaSessionIds(this.db)
     reconcileSettledWorkerDispatches(this.db)
     createCoordinatorMailRoutingTrigger.call(this as unknown as OrchestrationDb)

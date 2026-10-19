@@ -36,7 +36,7 @@ describe('orchestration RPC methods', () => {
       const other = { ...ctx, authenticatedCallerFingerprint: 'different_workspace_caller' }
 
       const summary = await h.call('orchestration.runShow', { id: run.id }, other)
-      expect(summary).toMatchObject({ removedWork: { tasks: 1 } })
+      expect(summary).toMatchObject({ removedWork: { coverage: 'complete', tasks: 1 } })
       expect(summary).not.toHaveProperty('removedWork.entries')
       await expect(
         h.call('orchestration.runShow', { id: run.id, removed: true }, other)

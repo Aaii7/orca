@@ -22,6 +22,8 @@ export const REMOVED_WORK_FIELDS = {
     hostScope: 'text',
     depth: 'int',
     status: 'text',
+    // Null when unknown: the Dispatch ended with no certified cause, or before this key existed.
+    terminationReason: 'text',
     createdAt: 'text'
   },
   worker: {

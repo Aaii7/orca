@@ -10,24 +10,36 @@ import {
   type RunRemovedWork
 } from '../../../../../shared/orchestration-removed-work'
 import { POTENTIALLY_LIVE_REMOTE_ATTACHMENT_STATES } from '../federation/remote-attachment-liveness'
+import { DURABLE_EXIT_PROOF } from '../../../../../shared/orchestration-fleet-worker-projection'
 import { OrchestrationError } from '../../orchestration-error'
 import { exposeUtcTimestamp } from '../utc-timestamp'
 
 const WORKER_KINDS = "('worker', 'remote_worker', 'federated_worker')"
-const LIVE_STATES = POTENTIALLY_LIVE_REMOTE_ATTACHMENT_STATES.map((state) => `'${state}'`).join(
-  ', '
-)
-// "Orca was still supervising it when tracking stopped", not a verdict about the process now.
-const LIVE_WORKER_ROW_SQL = `CASE WHEN json_valid(record) THEN
-  (kind IN ('worker', 'remote_worker') AND json_extract(record, '$.state') IN (${LIVE_STATES}))
-  OR (kind = 'federated_worker' AND json_extract(record, '$.dispatchStatus') IN ('pending', 'dispatched'))
-  ELSE 0 END`
-// A settled worker keeps its agent open until its terminal is released, so an unreleased Orca-owned
-// terminal also means its owner may still be running.
-const UNRELEASED_TERMINAL_ROW_SQL = `kind = 'terminal' AND CASE WHEN json_valid(record) THEN
-  COALESCE(json_extract(record, '$.releaseState'), '') <> 'released'
-  AND COALESCE(json_extract(record, '$.ownershipState'), '') NOT IN ('user_owned', 'released')
-  ELSE 0 END`
+const sqlList = (values: readonly string[]): string =>
+  values.map((value) => `'${value}'`).join(', ')
+const field = (key: string): string => `json_extract(record, '$.${key}')`
+// Every json_extract sits behind json_valid: a bad record must never fail the read.
+const whenValid = (predicate: string): string =>
+  `CASE WHEN json_valid(record) THEN ${predicate} ELSE 0 END`
+
+// Held: Orca was still supervising the process when tracking stopped, not a verdict about now.
+const HELD_WORKER_ROW_SQL = whenValid(`(kind IN ('worker', 'remote_worker')
+  AND ${field('state')} IN (${sqlList(POTENTIALLY_LIVE_REMOTE_ATTACHMENT_STATES)}))
+  OR (kind = 'federated_worker' AND ${field('dispatchStatus')} IN ('pending', 'dispatched'))`)
+// A settled worker keeps its agent open in a terminal Orca still owns.
+const HELD_TERMINAL_ROW_SQL = `kind = 'terminal' AND ${whenValid(
+  `COALESCE(${field('ownershipState')}, '') NOT IN ('user_owned', 'released')`
+)}`
+// Proven ended: the same durable exit proof the fleet liveness verdict accepts.
+const ENDED_WORKER_ROW_SQL = `kind IN ('worker', 'remote_worker') AND ${whenValid(
+  `${field('state')} = '${DURABLE_EXIT_PROOF.workerState}' OR ${field('stage')} = '${DURABLE_EXIT_PROOF.workerStage}'`
+)}`
+const RELEASED_TERMINAL_ROW_SQL = `kind = 'terminal' AND ${whenValid(
+  `${field('releaseState')} = '${DURABLE_EXIT_PROOF.resourceReleaseState}'`
+)}`
+const ENDED_DISPATCH_ROW_SQL = `kind = 'dispatch' AND ${whenValid(
+  `${field('terminationReason')} IN (${sqlList(DURABLE_EXIT_PROOF.terminationReasons)})`
+)}`
 
 /** Removed rows matching `scopeSql`, their distinct workers, and the workers that may still run. */
 function removedWorkScopeSql(scopeSql: string): string {
@@ -35,10 +47,16 @@ function removedWorkScopeSql(scopeSql: string): string {
       SELECT run_id, kind, entity_id, record FROM removed_orchestration_work WHERE ${scopeSql}
     ),
     workers AS (SELECT DISTINCT entity_id AS id FROM scope WHERE kind IN ${WORKER_KINDS}),
-    active AS (
-      SELECT entity_id AS id FROM scope WHERE ${LIVE_WORKER_ROW_SQL}
-      UNION SELECT json_extract(record, '$.ownerDispatchId') FROM scope WHERE ${UNRELEASED_TERMINAL_ROW_SQL}
-    )`
+    held AS (
+      SELECT entity_id AS id FROM scope WHERE ${HELD_WORKER_ROW_SQL}
+      UNION SELECT ${field('ownerDispatchId')} FROM scope WHERE ${HELD_TERMINAL_ROW_SQL}
+    ),
+    ended AS (
+      SELECT entity_id AS id FROM scope WHERE ${ENDED_WORKER_ROW_SQL}
+      UNION SELECT ${field('ownerDispatchId')} FROM scope WHERE ${RELEASED_TERMINAL_ROW_SQL}
+      UNION SELECT entity_id FROM scope WHERE ${ENDED_DISPATCH_ROW_SQL}
+    ),
+    active AS (SELECT id FROM held WHERE id IN (SELECT id FROM workers) EXCEPT SELECT id FROM ended)`
 }
 
 function readRemovedWorkCounts(db: Database.Database, scopeSql: string, param: string | number) {
@@ -50,7 +68,7 @@ function readRemovedWorkCounts(db: Database.Database, scopeSql: string, param: s
         COALESCE(SUM(kind = 'dispatch'), 0) AS dispatches,
         COALESCE(SUM(kind = 'terminal'), 0) AS terminals,
         (SELECT COUNT(*) FROM workers) AS workers,
-        (SELECT COUNT(*) FROM active WHERE id IN (SELECT id FROM workers)) AS active
+        (SELECT COUNT(*) FROM active) AS active
       FROM scope`
     )
     .get(param)
@@ -170,11 +188,11 @@ function readRunRemovedWorkPage(
   runId: string,
   options: { removed?: boolean | undefined; cursor?: string | undefined }
 ): RunRemovedWork | undefined {
-  // Strict: a Run created in the second recording started may predate the capture triggers.
+  // A moved marker sorts after every Run that existed then (see the capture install), so >= is exact.
   const coverage = db
     .prepare(
       `SELECT recorded_since,
-         (SELECT created_at FROM runs WHERE id = ?) > recorded_since AS complete,
+         (SELECT created_at FROM runs WHERE id = ?) >= recorded_since AS complete,
          (SELECT MAX(removed_at) FROM removed_orchestration_work WHERE run_id = ?) AS last_removed_at
        FROM removed_orchestration_work_coverage`
     )
@@ -200,7 +218,7 @@ function readRunRemovedWorkPage(
     db
       .prepare(
         `${removedWorkScopeSql('run_id = ?')}
-        SELECT id FROM active WHERE id IN (SELECT id FROM workers)`
+        SELECT id FROM active`
       )
       .all(runId)
       .map((row) => String(row.id))
