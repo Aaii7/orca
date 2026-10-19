@@ -47,10 +47,7 @@ const SENTENCES: Record<AgentSessionWriteNoticeSentence, () => string> = {
   sendOutcomeLost: () =>
     translate('components.native-chat.writeNotice.sendOutcomeLost', COPY.sendOutcomeLost),
   continuationSuperseded: () =>
-    translate(
-      'components.native-chat.writeNotice.continuationSuperseded',
-      COPY.continuationSuperseded
-    ),
+    translate('components.native-chat.writeNotice.continuationSuperseded', COPY.continuationSuperseded),
   questionChanged: () =>
     translate('components.native-chat.writeNotice.questionChanged', COPY.questionChanged),
   cancelNotSaved: () =>

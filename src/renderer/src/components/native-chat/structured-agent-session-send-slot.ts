@@ -32,8 +32,7 @@ export type StructuredAgentSessionSendInput = {
 }
 
 export type StructuredAgentSessionSendRequest = Pick<
-  StructuredAgentSessionSendInput,
-  'callerKeepsText' | 'usageLimitContinuationOfTurnItemId'
+  StructuredAgentSessionSendInput, 'callerKeepsText' | 'usageLimitContinuationOfTurnItemId'
 > & { onSettled?: (outcome: StructuredAgentSessionSendOutcome) => void }
 
 /** Takes the chat's one send slot, drawn as sending; null while another send of the chat is out. */
