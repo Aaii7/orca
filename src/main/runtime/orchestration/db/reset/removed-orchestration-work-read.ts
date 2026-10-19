@@ -115,8 +115,9 @@ function decodeEntry(row: SqliteRow): RemovedWorkEntry {
     })
   )
   const active = kind.endsWith('worker') ? { activeAtRemoval: row.active === 1 } : {}
+  const entry: unknown = { ...base, kind, ...active, ...fields }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fields are built from REMOVED_WORK_FIELDS[kind], the same table the entry type is derived from.
-  return { ...base, kind, ...active, ...fields } as RemovedWorkEntry
+  return entry as RemovedWorkEntry
 }
 
 export function readRunRemovedWork(
