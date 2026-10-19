@@ -53,7 +53,6 @@ export type {
 } from './structured-agent-session-stop-cause'
 import type { AgentJournalDispatchRejection } from '../../../shared/agent-session-failure-words'
 import type { AgentSessionPromptResponse } from '../../../shared/agent-session-question-answer'
-import type { ProviderHistoryWindow } from '../agent-session-journal/journal-submission-reconciler'
 import type { StructuredAgentSessionStartupAttempt } from './structured-agent-session-startup-attempt-contract'
 import type { AgentSessionCreatePhaseRecorder } from '../../observability/agent-session-instrumentation'
 import type { AgentModelCatalogLiveListing } from '../agent-model-catalog/agent-model-catalog-entry'
@@ -420,15 +419,6 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
     | undefined
   /** Option keys skipped after a provider rejected their persisted restore value. */
   readOptionRestoreFailures?(sessionId: string): readonly string[]
-  /** Provider history for restart reconciliation, bounded to what the provider
-   *  recorded after the journal's last committed item. Only the adapter can say
-   *  whether the read has a proven start and whether a turn is still running, so
-   *  it owns both flags. Omit where the provider records no boundary-consistent
-   *  history; an omitted window leaves every unsettled submission `unknown`. */
-  providerHistoryWindow?(input: {
-    identity: AgentSessionJournalIdentity
-    accountHome: AgentSessionAccountHome
-  }): Promise<ProviderHistoryWindow | null>
   /** Copies provider conversation `providerSessionId` of the chat into a new one the agent saves,
    *  answering the copy's id; the chat keeps its own. Runs whether or not the chat's agent is
    *  running. Absent where the agent copies through its CLI instead (`agentForksThroughChat`). */

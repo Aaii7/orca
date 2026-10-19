@@ -4,7 +4,7 @@
 // A damaged journal fails the open, which refuses it as unloadable. It marks what an earlier host
 // process handed over and left unanswered as in doubt, and settles what it left running — the
 // crash boundary. That
-// needs no lease: provider history decides such a row later, under a won lease, in the attach. A
+// needs no lease, and the doubt is final: whether the provider took such a row is never guessed. A
 // row an earlier process accepted and never handed over (it quit or crashed first) is settled here
 // too, before any reader, command or child sees it: a person's message is kept as a card, the rest
 // rejected (`journal-unsent-send-hold.ts`). The cards then wait for the chat's next turn
@@ -107,7 +107,7 @@ export async function openStructuredAgentSessionConversationJournal(
   const identity = journalIdentityFor(record, params)
   const journal = await openAgentSessionJournal({ identity, database: deps.journalDatabase })
   try {
-    // A handed-over row found here is only doubt, which provider history decides under a won lease.
+    // A handed-over row found here stays doubt: it reads as sent, and nothing narrows it later.
     await journal.markPendingSubmissionsUnknown(fence)
   } catch (error) {
     deps.logger.warn('marking pending sends unknown on open failed', {

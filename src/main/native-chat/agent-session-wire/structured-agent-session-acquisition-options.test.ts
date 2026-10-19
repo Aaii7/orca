@@ -11,7 +11,6 @@ import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
 import { digestPayload } from '../agent-session-journal/journal-payload-bounds'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
-import type { ProviderHistoryWindow } from '../agent-session-journal/journal-submission-reconciler'
 import {
   attachFingerprintFields,
   type AgentSessionAttachParams
@@ -118,20 +117,14 @@ function expectSettledAttachLease(record: AgentSessionRecord | null): void {
 }
 
 describe('structured session acquisition options', () => {
-  it('samples provider history before acquiring a replacement child', async () => {
-    root = await mkdtemp(join(tmpdir(), 'orca-history-before-acquire-'))
+  // STA-7416: absence from provider history never marks a crash-cut send undelivered.
+  it('keeps a send a crash cut off as sent when its chat reattaches', async () => {
+    root = await mkdtemp(join(tmpdir(), 'orca-crash-cut-send-'))
     const initialStore = await openTestAgentSessionRecordStore(root)
-    let childAcquired = false
-    const historyWindow = (): ProviderHistoryWindow => ({
-      items: [],
-      boundaryConsistent: true,
-      turnInFlight: childAcquired
-    })
-    const withHistory = (origin: 'created' | 'resumed'): StructuredAgentSessionAdapter => {
+    const withOrigin = (origin: 'created' | 'resumed'): StructuredAgentSessionAdapter => {
       const sessionAdapter = adapter({ origin })
       const acquire = vi.mocked(sessionAdapter.acquire)
       acquire.mockImplementation(async (input) => {
-        childAcquired = true
         return {
           process: {
             hostId: 'local',
@@ -148,7 +141,6 @@ describe('structured session acquisition options', () => {
           }
         }
       })
-      sessionAdapter.providerHistoryWindow = vi.fn(async () => historyWindow())
       return sessionAdapter
     }
 
@@ -157,7 +149,7 @@ describe('structured session acquisition options', () => {
       agents: NO_STRUCTURED_AGENTS,
       logger: createStructuredAgentSessionLogger(),
       store: initialStore,
-      adapter: withHistory('created'),
+      adapter: withOrigin('created'),
       openConversation: openTestAttachConversation(openTestJournalHostDatabase(root!)),
       authority: {
         spawnToken: 'spawn-a',
@@ -189,14 +181,13 @@ describe('structured session acquisition options', () => {
       probe: async () => ({ outcome: 'pid-absent' }),
       now: NOW + 1
     })
-    childAcquired = false
     const releasedFence = store.getRecord(SESSION)?.lease.runtimeFence ?? 0
 
     const second = await performAttach({
       agents: NO_STRUCTURED_AGENTS,
       logger: createStructuredAgentSessionLogger(),
       store,
-      adapter: withHistory('resumed'),
+      adapter: withOrigin('resumed'),
       openConversation: openTestAttachConversation(openTestJournalHostDatabase(root!)),
       authority: {
         spawnToken: 'spawn-b',
@@ -210,10 +201,15 @@ describe('structured session acquisition options', () => {
       onAttached: () => {}
     })
 
-    expect(second).toMatchObject({ ok: true, value: { unconfirmedClientMessageIds: [] } })
     expect(second).toMatchObject({
+      ok: true,
       value: {
-        page: { submissions: [{ clientMessageId: 'crashed-send', dispatchState: 'rejected' }] }
+        unconfirmedClientMessageIds: ['crashed-send'],
+        page: {
+          submissions: [
+            { clientMessageId: 'crashed-send', dispatchState: 'unknown', recovered: true }
+          ]
+        }
       }
     })
   })

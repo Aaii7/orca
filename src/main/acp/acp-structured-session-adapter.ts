@@ -39,7 +39,6 @@ import {
   type AcpStructuredSessionAdapterDeps
 } from './acp-structured-session-adapter-deps'
 import { readAcpLiveOptions, writeAcpSessionOption } from './acp-structured-options'
-import { readAcpRecoveryHistory } from './acp-recovery-history'
 import { stopAcpChildren, acpChildStopCapabilities } from './acp-structured-child-stop'
 import { AcpConversationCopies } from './acp-conversation-copies'
 import { supportsAcpStructuredLocation } from './acp-structured-location-support'
@@ -53,11 +52,6 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
   constructor(private readonly deps: AcpStructuredSessionAdapterDeps) {
     this.copies = new AcpConversationCopies(deps)
   }
-
-  /** Restart recovery's evidence; null for an agent whose own store Orca cannot read. */
-  providerHistoryWindow: NonNullable<StructuredAgentSessionAdapter['providerHistoryWindow']> = (
-    input
-  ) => readAcpRecoveryHistory(this.deps, input.identity)
 
   copyConversation: NonNullable<StructuredAgentSessionAdapter['copyConversation']> = (input) =>
     this.copies.copy(input)

@@ -10,8 +10,6 @@ import { ANTIGRAVITY_ACP_DIALECT } from './acp-dialects/antigravity-dialect'
 import { directoryAccountBinding, type AcpAccountBinding } from './acp-account-binding'
 import { openCodeAcpAccountBinding } from '../opencode/opencode-structured-account-home'
 import { scrubOpenCodeAcpEnvironment } from '../opencode/opencode-acp-environment'
-import { openCodeStoredUserMessagesReader } from '../opencode/opencode-acp-stored-messages'
-import type { AcpStoredUserMessagesReader } from './acp-recovery-history'
 import { isStableCliVersionFrom, isStableCliVersionOnLine } from '../agent-cli-version-probe'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { AgentSessionModelOption } from '../../shared/agent-session-wire'
@@ -149,8 +147,6 @@ export type AcpLaunchSpec = {
   /** Throws when the chat's own arguments would send a copied conversation's CLI elsewhere than
    *  the store the copy is written to. */
   assertCopyLaunchArgs?: (args: readonly string[]) => void
-  /** The agent's own store of a session's user messages, read for restart recovery only. */
-  readStoredUserMessages?: AcpStoredUserMessagesReader
   modelDiscovery: AcpModelDiscovery
   /** How a launch loads the inline-visuals skill; absent, the agent's chats have no visuals. */
   visualsSkill?: AcpVisualsSkillLoader
@@ -224,7 +220,6 @@ function openCodeLaunchSpec(
     account: openCodeAcpAccountBinding(),
     installDirectories: ({ homePath }) => [join(homePath, '.opencode', 'bin')],
     imagePrompts: true,
-    readStoredUserMessages: openCodeStoredUserMessagesReader(),
     visualsSkill: loadOpenCodeVisualsSkill,
     compaction: true,
     assertCopyLaunchArgs: assertOpenCodeCopyUsesLocalStore,

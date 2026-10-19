@@ -38,7 +38,8 @@ export function queuedMessageSettlementOwed(
 }
 
 /** A card waits, or is mid-hand-off and may come back to waiting: a chat that stops running
- *  marks it (`AgentSessionJournal.markQueueReopen`). */
+ *  marks it (`AgentSessionJournal.markQueueReopen`). A hand-off a restart left unconfirmed never
+ *  comes back: nothing settles a recovered send after its child is gone. */
 export function queuedMessagesAwaitReopenMark(
   rows: readonly QueuedMessageRow[],
   submissions: Submissions
@@ -47,8 +48,12 @@ export function queuedMessagesAwaitReopenMark(
     if (row.state === 'waiting') {
       return true
     }
-    const handOff = row.consumedAs ? submissions.get(row.consumedAs)?.dispatchState : undefined
-    return row.state === 'dispatched' && (handOff === 'pending' || handOff === 'unknown')
+    const handOff = row.consumedAs ? submissions.get(row.consumedAs) : undefined
+    return (
+      row.state === 'dispatched' &&
+      (handOff?.dispatchState === 'pending' ||
+        (handOff?.dispatchState === 'unknown' && handOff.recovered !== true))
+    )
   })
 }
 

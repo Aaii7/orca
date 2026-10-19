@@ -22,7 +22,6 @@ import {
   admitAttachOrRefuse,
   attachJournal,
   classifyStoreFailure,
-  journalIdentityFor,
   reserveRequestFor,
   type AgentSessionAttachAuthority,
   type AgentSessionAttachParams,
@@ -48,8 +47,6 @@ import {
   withAgentSessionCreatePhase,
   type AgentSessionCreatePhaseRecorder
 } from '../../observability/agent-session-instrumentation'
-import type { ProviderHistoryWindow } from '../agent-session-journal/journal-submission-reconciler'
-import { readProviderHistoryWindow } from './structured-agent-session-provider-history-window'
 import type { StructuredAgentSessionStartupAttempt } from './structured-agent-session-startup-attempt-contract'
 import type { StructuredAgentSessionStartupProgress } from './structured-agent-session-startup-attempt'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
@@ -142,7 +139,6 @@ export async function performAttach(
   let reservedRecord: AgentSessionRecord | null = null
   let unsupportedReservationSettlementAttempted = false
   let replayed = false
-  let providerHistoryWindow: ProviderHistoryWindow | null = null
   const preparedTranscript = store.getRecord(sessionId)
     ? { ok: true as const, items: null }
     : await prepareAdoptedTranscript(params)
@@ -193,15 +189,6 @@ export async function performAttach(
         return { ok: false, refusal: replay.refusal }
       }
     }
-    // Sample provider history before a new child is acquired. Once acquireOwner
-    // starts the child, the adapter's liveness signal intentionally becomes
-    // conservative and an absent prompt can no longer prove non-delivery.
-    providerHistoryWindow = await readProviderHistoryWindow({
-      adapter: input.adapter,
-      identity: journalIdentityFor(record, params),
-      accountHome: record.accountHome,
-      ownerAlreadyAdmitted: agentSessionLeaseAdmitsWriter(record.lease)
-    })
     if (!agentSessionLeaseAdmitsWriter(record.lease)) {
       const acquired = await withAgentSessionCreatePhase('acquire_owner', input.recordPhase, () =>
         acquireOwner(input, record)
@@ -262,13 +249,7 @@ export async function performAttach(
   let attached: AttachedJournal
   try {
     await input.beforeJournalOpen?.()
-    attached = await attachJournal({
-      record,
-      params,
-      adapter: input.adapter,
-      openConversation: input.openConversation,
-      providerHistoryWindow
-    })
+    attached = await attachJournal({ record, openConversation: input.openConversation })
     await importAdoptedTranscript(params, attached, record, preparedTranscript.items)
     await input.onAttached(attached, acquisitionGeneration, owner, providerChildPhase)
     await store.recordOperationOutcome({
