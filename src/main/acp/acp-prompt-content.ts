@@ -1,6 +1,5 @@
-// A person's message as an ACP prompt. Images go as the protocol's image blocks, each checked and
-// read before anything reaches the agent, and only to an agent that advertised them; any other
-// agent gets the image's path.
+// Native images require advertised support and bounded materialization; host paths retain
+// their ordinary file-reference representation whenever native delivery cannot fit.
 
 import { extname, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -90,24 +89,34 @@ async function imageBlock(
     throw attachmentProblem({ reason: 'noSource' })
   }
   const mimeType = IMAGE_FILE_MIME_TYPES[extname(path).toLowerCase()]
-  if (!mimeType || !ACP_IMAGE_MIME_TYPES.has(mimeType)) {
-    throw attachmentProblem({ reason: 'unsupportedType' })
+  const fallback = {
+    block: { type: 'text' as const, text: formatNativeChatFileReference(path) },
+    bytes: 0
+  }
+  if (!mimeType || !ACP_IMAGE_MIME_TYPES.has(mimeType) || remainingBytes <= 0) {
+    return fallback
   }
   let data: Buffer
   try {
     data = (await readNodeFileWithinLimit(path, remainingBytes, { regularFileOnly: true, signal }))
       .buffer
   } catch (error) {
-    if (error instanceof NodeFileReadTooLargeError) {
-      throw tooLarge()
+    if (
+      error instanceof NodeFileReadTooLargeError ||
+      (signal.aborted && error === signal.reason) ||
+      (error instanceof Error &&
+        (error.message === 'Expected a regular file' ||
+          ('errno' in error &&
+            typeof error.errno === 'number' &&
+            'syscall' in error &&
+            typeof error.syscall === 'string')))
+    ) {
+      return fallback
     }
-    if (error instanceof Error && error.message === 'Expected a regular file') {
-      throw attachmentProblem({ reason: 'notAFile' })
-    }
-    throw new AcpPromptContentError(agentSessionFailureFact('attachmentUnreadable'))
+    throw error
   }
   if (data.byteLength === 0) {
-    throw attachmentProblem({ reason: 'empty' })
+    return fallback
   }
   return { block: { type: 'image', mimeType, data: data.toString('base64') }, bytes: data.length }
 }
@@ -117,13 +126,22 @@ export async function acpPromptBlocks(
   body: AgentJournalMessageItem,
   acceptsImages: boolean
 ): Promise<ContentBlock[]> {
-  const blocks: ContentBlock[] = []
+  // Reserve text and path slots, including those after each optional native image.
+  const blocks: ContentBlock[] = body.blocks.map((block) => {
+    if (block.type === 'text') {
+      return { type: 'text', text: block.text }
+    }
+    const path = block.type === 'image-ref' ? hostImagePath(block) : null
+    return { type: 'text', text: path ? formatNativeChatFileReference(path) : '' }
+  })
+  const blockBytes = (block: ContentBlock): number => Buffer.byteLength(JSON.stringify(block))
+  let encodedBytes =
+    2 + Math.max(0, blocks.length - 1) + blocks.reduce((n, b) => n + blockBytes(b), 0)
   const signal = AbortSignal.timeout(READ_TIMEOUT_MS)
   let imageCount = 0
   let imageBytes = 0
-  for (const block of body.blocks) {
+  for (const [index, block] of body.blocks.entries()) {
     if (block.type === 'text') {
-      blocks.push({ type: 'text', text: block.text })
       continue
     }
     if (block.type !== 'image-ref') {
@@ -135,16 +153,32 @@ export async function acpPromptBlocks(
       if (!path) {
         throw attachmentProblem({ reason: 'unsupportedType' })
       }
-      blocks.push({ type: 'text', text: formatNativeChatFileReference(path) })
       continue
     }
-    imageCount += 1
-    if (imageCount > MAX_IMAGE_COUNT) {
+    const inline = block.url?.startsWith('data:')
+    if (inline && imageCount >= MAX_IMAGE_COUNT) {
       throw attachmentProblem({ reason: 'tooMany', limit: MAX_IMAGE_COUNT })
     }
-    const image = await imageBlock(block, ACP_PROMPT_IMAGE_MAX_BYTES - imageBytes, signal)
+    const previousBytes = blockBytes(blocks[index]!)
+    const path = hostImagePath(block)
+    const mimeType = IMAGE_FILE_MIME_TYPES[extname(path ?? '').toLowerCase()] ?? ''
+    const overhead = blockBytes({ type: 'image', mimeType, data: '' })
+    const encodedCapacity =
+      encodedBytes > ACP_PROMPT_LINE_BUDGET
+        ? 0
+        : 3 * Math.floor((ACP_PROMPT_LINE_BUDGET - encodedBytes + previousBytes - overhead) / 4)
+    const remainingBytes = inline
+      ? ACP_PROMPT_IMAGE_MAX_BYTES - imageBytes
+      : imageCount >= MAX_IMAGE_COUNT
+        ? 0
+        : Math.min(ACP_PROMPT_IMAGE_MAX_BYTES - imageBytes, encodedCapacity)
+    const image = await imageBlock(block, remainingBytes, signal)
+    if (image.block.type === 'image') {
+      imageCount += 1
+    }
     imageBytes += image.bytes
-    blocks.push(image.block)
+    blocks[index] = image.block
+    encodedBytes += blockBytes(image.block) - previousBytes
   }
   // Only images can carry a message past one line here; their words are the refusal's.
   if (imageCount > 0 && Buffer.byteLength(JSON.stringify(blocks)) > ACP_PROMPT_LINE_BUDGET) {
