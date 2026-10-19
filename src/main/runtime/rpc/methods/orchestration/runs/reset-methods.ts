@@ -6,7 +6,7 @@ export const ORCHESTRATION_RESET_METHODS = [
     name: 'orchestration.reset',
     permission: 'workspace',
     params: ResetParams,
-    handler: (params, { runtime, orchestrationMutation }) => {
+    handler: (params, { runtime }) => {
       const db = runtime.getOrchestrationDb()
       if (params.all) {
         runtime.stopOrchestrationFederationRelay()
@@ -15,8 +15,8 @@ export const ORCHESTRATION_RESET_METHODS = [
       }
       if (params.tasks) {
         runtime.stopOrchestrationFederationRelay()
-        const lineage = db.resetTasks(orchestrationMutation)
-        return { reset: 'tasks', lineage }
+        const removed = db.resetTasks()
+        return removed ? { reset: 'tasks', removed } : { reset: 'tasks' }
       }
       if (params.messages) {
         db.resetMessages()

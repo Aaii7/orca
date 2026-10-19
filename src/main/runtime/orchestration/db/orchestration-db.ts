@@ -4,6 +4,10 @@ import { hardenOrchestrationDatabaseFiles } from './database-file-permissions'
 import { backfillFederatedStubHomeRuns } from './federation/federated-stub-home-run-backfill'
 import type { OrchestrationDbMethods } from './orchestration-db-methods'
 import {
+  installRemovedWorkCapture,
+  isRemovedWorkCaptureIntact
+} from './reset/removed-orchestration-work-store'
+import {
   createCoordinatorMailRoutingTrigger,
   createRunCoordinatorAddressTriggers,
   rememberCurrentRunCoordinatorHandles
@@ -31,7 +35,10 @@ class OrchestrationDbCore {
     this.db.pragma('synchronous = NORMAL')
     this.db.pragma('busy_timeout = 5000')
     createTables.call(this as unknown as OrchestrationDb)
+    // Read before migrate, which drops the capture triggers it may need to rebuild around.
+    const removedWorkCaptureWasIntact = isRemovedWorkCaptureIntact(this.db)
     migrate.call(this as unknown as OrchestrationDb)
+    installRemovedWorkCapture(this.db, removedWorkCaptureWasIntact)
     createRunCoordinatorAddressTriggers(this.db)
     backfillFederatedStubHomeRuns(this.db)
     backfillStructuredWorkerOrcaSessionIds(this.db)

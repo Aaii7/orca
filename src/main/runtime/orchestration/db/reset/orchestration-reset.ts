@@ -1,20 +1,26 @@
-import { randomUUID } from 'node:crypto'
 import { LEGACY_RUN_ID } from '../contract-constants'
 import type { OrchestrationDb } from '../orchestration-db'
-import { captureRunResetLineage } from './run-reset-lineage'
+import type { ResetRemovedWork } from '../../../../../shared/orchestration-removed-work'
+import {
+  readRemovedWorkWatermark,
+  summarizeRemovedWorkSince
+} from './removed-orchestration-work-read'
 
 // ── Lifecycle ──
 
-export function runResetTransaction(
-  this: OrchestrationDb,
-  statements: string,
-  beforeDelete?: () => void
-): void {
+/** Returns the removed-work watermark read inside the transaction, or undefined if it can't be read. */
+export function runResetTransaction(this: OrchestrationDb, statements: string): number | undefined {
   this.db.exec('BEGIN IMMEDIATE')
   try {
-    beforeDelete?.()
+    let watermark: number | undefined
+    try {
+      watermark = readRemovedWorkWatermark(this.db)
+    } catch {
+      // Why: the watermark only feeds the reply summary; it must never fail the reset.
+    }
     this.db.exec(statements)
     this.db.exec('COMMIT')
+    return watermark
   } catch (error) {
     try {
       this.db.exec('ROLLBACK')
@@ -50,27 +56,17 @@ export function resetAll(this: OrchestrationDb): void {
     DELETE FROM messages;
     DELETE FROM run_coordinator_handles;
     DELETE FROM runs;
+    DELETE FROM removed_orchestration_work;
     INSERT INTO runs (id, objective, home_database, consumer_generation, legacy)
       VALUES ('${LEGACY_RUN_ID}', 'Legacy orchestration state (inspect only)', 'this_database', 0, 1);
   `)
   this.hasAnyDispatchContextsCache = undefined
 }
 
-export function resetTasks(
-  this: OrchestrationDb,
-  mutation?: {
-    callerFingerprint: string
-    requestId: string
-    method: string
-    payloadHash: string
-  }
-): { requestId: string; affectedRuns: number; incompleteRuns: number } {
-  const requestId = mutation?.requestId ?? randomUUID()
-  let lineage = { requestId, affectedRuns: 0, incompleteRuns: 0 }
+export function resetTasks(this: OrchestrationDb): ResetRemovedWork | undefined {
   // Why: messages survive this scope, so question threads are closed rather than deleted — an orphaned
   // question message would otherwise answer as a generic reply while legacy acknowledgment rejects it.
-  this.runResetTransaction(
-    `
+  const watermark = this.runResetTransaction(`
     DELETE FROM coordinator_runs;
     DELETE FROM decision_gates;
     DELETE FROM remote_questions;
@@ -91,23 +87,9 @@ export function resetTasks(
     DELETE FROM worker_dispatches;
     DELETE FROM dispatch_contexts;
     DELETE FROM tasks;
-  `,
-    () => {
-      lineage = captureRunResetLineage(this, requestId)
-      if (mutation) {
-        this.completeMutationReceipt({
-          ...mutation,
-          receipt: JSON.stringify({
-            reset: 'tasks',
-            lineage,
-            mutation: { requestId, replayed: false }
-          })
-        })
-      }
-    }
-  )
+  `)
   this.hasAnyDispatchContextsCache = undefined
-  return lineage
+  return summarizeRemovedWorkSince(this.db, watermark)
 }
 
 export function resetMessages(this: OrchestrationDb): void {

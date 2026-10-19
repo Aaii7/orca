@@ -24,32 +24,24 @@ describe('orchestration RPC methods', () => {
   }
 
   describe('lightweight Runs', () => {
-    it('lets another workspace caller read retained reset lineage through run-show', async () => {
+    it('shows another caller the work a reset removed, listed only on request', async () => {
       setup(false)
       const run = db.createRun({
-        objective: 'Reset read contract',
+        objective: 'Removed work read contract',
         coordinatorHandle: 'term_coord',
         coordinatorPaneKey
       })
       const task = db.createTask({ runId: run.id, spec: 'worker task' })
       db.resetTasks()
+      const other = { ...ctx, authenticatedCallerFingerprint: 'different_workspace_caller' }
 
-      const shown = await h.call(
-        'orchestration.runShow',
-        { id: run.id },
-        {
-          ...ctx,
-          authenticatedCallerFingerprint: 'different_workspace_caller'
-        }
-      )
-
-      expect(shown).toMatchObject({
-        resetLineage: {
-          status: 'complete',
-          batches: [
-            { scope: { tasks: { total: 1, rows: [expect.objectContaining({ id: task.id })] } } }
-          ]
-        }
+      const summary = await h.call('orchestration.runShow', { id: run.id }, other)
+      expect(summary).toMatchObject({ removedWork: { coverage: 'complete', tasks: 1 } })
+      expect(summary).not.toHaveProperty('removedWork.entries')
+      await expect(
+        h.call('orchestration.runShow', { id: run.id, removed: true }, other)
+      ).resolves.toMatchObject({
+        removedWork: { entries: [{ kind: 'task', id: task.id }], page: { hasMore: false } }
       })
     })
 
