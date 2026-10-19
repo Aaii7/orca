@@ -207,7 +207,7 @@ describe('removed work CLI text', () => {
       })
     ).toBe('')
     expect(formatRunRemovedWorkLine('run_1', summary)).toBe(
-      `\nremoved work: 2 tasks, 1 dispatch, 1 worker (1 may still be running); removals before 2026-10-19T00:00:00Z were not recorded. List it: ${list}`
+      `\nremoved work: 2 tasks, 1 dispatch, 1 worker (1 may still be running), 1 terminal; removals before 2026-10-19T00:00:00Z were not recorded. List it: ${list}`
     )
     const client = new RuntimeClient()
     const call = vi.spyOn(client, 'call').mockResolvedValue({
@@ -234,7 +234,7 @@ describe('removed work CLI text', () => {
 
   it('lists removed entries with a next page, and says when the host keeps no record', () => {
     expect(formatRemovedWorkListing('run_1', undefined)).toBe(
-      'This Orca host does not keep a record of removed work.'
+      'No record of removed work is available from this Orca host.'
     )
     expect(formatRemovedWorkListing('run_1', { ...summary, entries: [] }, '99')).toBe(
       'No more removed work in this Run after cursor 99.'

@@ -14,17 +14,21 @@ function partialNote(removed: RunRemovedWork): string {
     : ''
 }
 
-/** The run-show line, or nothing when the Run has no removed work or the host keeps no record. */
+/** The run-show line, or nothing when the Run has no removed work or the host sent no record. */
 export function formatRunRemovedWorkLine(runId: string, removed?: RunRemovedWork): string {
   if (!removed || removed.tasks + removed.dispatches + removed.workers + removed.terminals === 0) {
     return ''
   }
   const active = removed.activeWorkersAtRemoval
-  return (
-    `\nremoved work: ${count(removed.tasks, 'task')}, ${count(removed.dispatches, 'dispatch', 'dispatches')}, ` +
-    `${count(removed.workers, 'worker')}${active > 0 ? ` (${active} may still be running)` : ''}` +
-    `${partialNote(removed)}. List it: ${listCommand(runId)}`
-  )
+  const running = active > 0 ? ` (${active} may still be running)` : ''
+  // Only the kinds this Run actually lost, so an orphan terminal never reads as "0 tasks".
+  const kinds = [
+    removed.tasks > 0 ? count(removed.tasks, 'task') : '',
+    removed.dispatches > 0 ? count(removed.dispatches, 'dispatch', 'dispatches') : '',
+    removed.workers > 0 ? `${count(removed.workers, 'worker')}${running}` : '',
+    removed.terminals > 0 ? count(removed.terminals, 'terminal') : ''
+  ].filter(Boolean)
+  return `\nremoved work: ${kinds.join(', ')}${partialNote(removed)}. List it: ${listCommand(runId)}`
 }
 
 function formatEntry(entry: RemovedWorkEntry): string {
@@ -61,7 +65,8 @@ export function formatRemovedWorkListing(
   cursor?: string
 ): string {
   if (!removed) {
-    return 'This Orca host does not keep a record of removed work.'
+    // Also shown when a host could not read its record; run-show omits the field either way.
+    return 'No record of removed work is available from this Orca host.'
   }
   const entries = removed.entries ?? []
   if (entries.length === 0) {
