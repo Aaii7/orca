@@ -57,7 +57,7 @@ describe('project removal on the execution host', () => {
     await expect(runtime.removeProject(TEST_REPO_ID)).resolves.toEqual({ removed: true })
 
     expect(stoppedBeforeRemoval.sort()).toEqual(['pty-hidden', 'pty-visible'])
-    expect(removeProjectForHost).toHaveBeenCalledWith(TEST_REPO_ID, 'local')
+    expect(removeProjectForHost).toHaveBeenCalledWith(expect.objectContaining({ id: TEST_REPO_ID }))
   })
 
   it('stops native shells of a project a paired client registered under a runtime stamp', async () => {
@@ -141,6 +141,63 @@ describe('project removal on the execution host', () => {
       getRepos: () => (removed ? [] : [repo]),
       removeProjectForHost: () => {
         removed = true
+      }
+    })
+    runtime.setPtyController({
+      write: () => true,
+      kill: vi.fn(() => false),
+      stopAndWait: vi.fn(async () => true),
+      getForegroundProcess: async () => null
+    })
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
+
+    await runtime.removeProject(TEST_REPO_ID)
+
+    await expect(runtime.acquireWorktreeTerminalSpawn(TEST_WORKTREE_ID)).rejects.toThrow(
+      'repo_not_found'
+    )
+  })
+
+  it('refuses an SSH spawn after removal even though a local same-id sibling survives', async () => {
+    const localRow = store.getRepo(TEST_REPO_ID)!
+    const sshRow: Repo = { ...localRow, path: '/srv/ssh-copy', connectionId: 'ssh-target' }
+    let rows = [localRow, sshRow]
+    const runtime = new OrcaRuntimeService({
+      ...store,
+      getRepo: (id: string) => rows.find((row) => row.id === id),
+      getRepos: () => rows,
+      removeProjectForHost: () => {
+        rows = [localRow]
+      }
+    })
+    runtime.setPtyController({
+      write: () => true,
+      kill: vi.fn(() => false),
+      stopAndWait: vi.fn(async () => true),
+      getForegroundProcess: async () => null
+    })
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
+
+    await runtime.removeProject('path:/srv/ssh-copy')
+
+    await expect(
+      runtime.acquireWorktreeTerminalSpawn(TEST_WORKTREE_ID, { connectionId: 'ssh-target' })
+    ).rejects.toThrow('repo_not_found')
+    const releaseLocal = await runtime.acquireWorktreeTerminalSpawn(TEST_WORKTREE_ID)
+    releaseLocal()
+  })
+
+  it('refuses a spawn on any host once no row with the removed id survives', async () => {
+    const sshRow: Repo = { ...store.getRepo(TEST_REPO_ID)!, connectionId: 'ssh-target' }
+    let rows = [sshRow]
+    const runtime = new OrcaRuntimeService({
+      ...store,
+      getRepo: (id: string) => rows.find((row) => row.id === id),
+      getRepos: () => rows,
+      removeProjectForHost: () => {
+        rows = []
       }
     })
     runtime.setPtyController({
