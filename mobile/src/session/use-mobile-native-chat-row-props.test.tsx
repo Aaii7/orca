@@ -1,10 +1,11 @@
-import { createElement } from 'react'
+import { createElement, useMemo } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import type { NativeChatSettledTurns } from '../../../src/shared/native-chat-turn-status'
 import {
   useMobileNativeChatRowProps,
+  type MobileNativeChatRowLookups,
   type MobileNativeChatRowProps
 } from './use-mobile-native-chat-row-props'
 import {
@@ -13,11 +14,37 @@ import {
 } from './use-mobile-native-chat-turn-disclosure'
 
 const NO_NOTICES: ReadonlyMap<string, string> = new Map()
+const NO_RUN_OWNERS: ReadonlyMap<string, string> = new Map()
+const NO_PREDECESSORS: MobileNativeChatRowLookups['taskListPredecessors'] = new Map()
+const rowKeyOf = (message: NativeChatMessage): string => message.id
+
+function useRowProps(
+  messages: readonly NativeChatMessage[],
+  resolveTurnRow: MobileNativeChatRowLookups['resolveTurnRow'],
+  unsentNotices: ReadonlyMap<string, string>
+): readonly MobileNativeChatRowProps[] {
+  const lookups = useMemo(
+    () => ({
+      resolveTurnRow,
+      rowKeyOf,
+      runOwners: NO_RUN_OWNERS,
+      taskListPredecessors: NO_PREDECESSORS,
+      unsentNotices,
+      receipts: null,
+      actionablePromptIds: undefined
+    }),
+    [resolveTurnRow, unsentNotices]
+  )
+  return useMobileNativeChatRowProps(messages, lookups)
+}
 
 const idleTurnRow: MobileNativeChatTurnRow = {
   turnStatus: null,
   turnExpanded: false,
   activeTurnIsWorking: false,
+  trailingRun: false,
+  userMessageOpen: false,
+  onToggleUserMessage: () => {},
   mayStillGrow: false,
   reasoningIsLive: false,
   reasoningExpanded: false,
@@ -51,7 +78,7 @@ function Harness({
     settledTurns,
     scopeKey: 'host\0worktree\0tab-a'
   })
-  rendered = useMobileNativeChatRowProps(turns.listMessages, turns.resolveRow, unsentNotices)
+  rendered = useRowProps(turns.listMessages, turns.resolveRow, unsentNotices)
   return null
 }
 
@@ -116,7 +143,7 @@ describe('useMobileNativeChatRowProps', () => {
     const messages = [...history, unsent]
     const resolveTurnRow = (): MobileNativeChatTurnRow => idleTurnRow
     function Notices({ notices }: { notices: ReadonlyMap<string, string> }): null {
-      rendered = useMobileNativeChatRowProps(messages, resolveTurnRow, notices)
+      rendered = useRowProps(messages, resolveTurnRow, notices)
       return null
     }
     act(() => {
@@ -135,11 +162,54 @@ describe('useMobileNativeChatRowProps', () => {
     expect(rows()[0]).toBe(before[0])
   })
 
+  it('replaces only the row whose run owner or awaiting state changes', () => {
+    const resolveTurnRow = (): MobileNativeChatTurnRow => idleTurnRow
+    function Lookups({
+      runOwners,
+      actionablePromptIds
+    }: Pick<MobileNativeChatRowLookups, 'runOwners' | 'actionablePromptIds'>): null {
+      const lookups = useMemo(
+        () => ({
+          resolveTurnRow,
+          rowKeyOf,
+          runOwners,
+          taskListPredecessors: NO_PREDECESSORS,
+          unsentNotices: NO_NOTICES,
+          receipts: null,
+          actionablePromptIds
+        }),
+        [runOwners, actionablePromptIds]
+      )
+      rendered = useMobileNativeChatRowProps(history, lookups)
+      return null
+    }
+    act(() => {
+      renderer = create(
+        createElement(Lookups, { runOwners: NO_RUN_OWNERS, actionablePromptIds: [] })
+      )
+    })
+    const before = rows()
+
+    act(() =>
+      renderer?.update(
+        createElement(Lookups, {
+          runOwners: new Map([['a1', 'u1']]),
+          actionablePromptIds: ['u2']
+        })
+      )
+    )
+
+    expect(rows()[0]).toBe(before[0])
+    expect(rows()[1]?.runOwner).toBe('u1')
+    expect(before[2]?.awaiting).toBe(false)
+    expect(rows()[2]?.awaiting).toBe(true)
+  })
+
   it('skips resolving rows on a render that changed neither the rows nor the resolver', () => {
     const resolveTurnRow = vi.fn((): MobileNativeChatTurnRow => idleTurnRow)
     // Stands in for the view re-rendering on a composer keystroke.
     function Static({ composerText }: { composerText: string }): string {
-      rendered = useMobileNativeChatRowProps(history, resolveTurnRow, NO_NOTICES)
+      rendered = useRowProps(history, resolveTurnRow, NO_NOTICES)
       return composerText
     }
     act(() => {
