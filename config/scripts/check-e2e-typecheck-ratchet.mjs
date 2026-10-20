@@ -54,6 +54,9 @@ export function main(
   const { grown, shrunk } = diffCounts(current, baseline)
   for (const { file, now, allowed } of grown) {
     console.error(`${file}: ${now} type error(s), baseline allows ${allowed}.`)
+    for (const line of tscOutput.split(/\r?\n/).filter((row) => row.startsWith(`${file}(`))) {
+      console.error(line)
+    }
   }
   if (grown.length > 0) {
     console.error(`See the errors with: pnpm typecheck:e2e`)
