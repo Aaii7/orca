@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { mergePRCommentIntoList } from '@/store/github/pr-comment-cache'
 import {
@@ -81,7 +81,9 @@ export function useChecksPanelAiAcknowledgement(model: ChecksPanelAiAcknowledgem
   )
 
   const refreshCommentsRef = useRef(refreshCommentsAfterBulkResolve)
-  refreshCommentsRef.current = refreshCommentsAfterBulkResolve
+  useLayoutEffect(() => {
+    refreshCommentsRef.current = refreshCommentsAfterBulkResolve
+  }, [refreshCommentsAfterBulkResolve])
 
   const resolveSelectedThreadsAfterLaunch = useCallback(
     async (resolution: NonNullable<ChecksAgentComposerState['commentResolution']>) => {

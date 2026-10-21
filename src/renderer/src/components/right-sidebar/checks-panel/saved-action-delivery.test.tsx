@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import type { RefObject } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
@@ -52,8 +53,8 @@ function fixture(saved = true) {
     detectedAgentIds: null,
     ensureDetectedAgents: () => inventory.promise
   })
-  const pending = { current: null as PendingPRCommentAiAck | null }
-  const claimed = { current: null as PendingPRCommentAiAck | null }
+  const pending: RefObject<PendingPRCommentAiAck | null> = { current: null }
+  const claimed: RefObject<PendingPRCommentAiAck | null> = { current: null }
   const busy = { current: false }
   const accepted = { current: false }
   const context = { current: checksPanelAsyncResultKey(repo.id, 'main', 42, null, 'head') }
