@@ -40,7 +40,6 @@ export function createLaunchFunnelStore(): {
   repos: { id: string; connectionId: string | null; path: string }[]
   allWorktrees: ReturnType<typeof vi.fn>
   tabsByWorktree: Record<string, { id: string }[]>
-  groupsByWorktree: Record<string, { id: string }[]>
   openFiles: { id: string; worktreeId: string }[]
   browserTabsByWorktree: Record<string, { id: string }[]>
   tabBarOrderByWorktree: Record<string, string[]>
@@ -60,7 +59,6 @@ export function createLaunchFunnelStore(): {
     repos: [],
     allWorktrees: vi.fn(() => []),
     tabsByWorktree: { 'wt-1': [{ id: 'tab-1' }] },
-    groupsByWorktree: { 'wt-1': [{ id: 'group-1' }] },
     openFiles: [],
     browserTabsByWorktree: {},
     tabBarOrderByWorktree: {},
@@ -111,7 +109,6 @@ export function resetLaunchFunnelStore(
   store.settings = launchFunnelSettings(settingsOverrides)
   store.repos = []
   store.tabsByWorktree = { 'wt-1': [{ id: 'tab-1' }] }
-  store.groupsByWorktree = { 'wt-1': [{ id: 'group-1' }] }
   store.openFiles = []
   store.browserTabsByWorktree = {}
   store.tabBarOrderByWorktree = {}

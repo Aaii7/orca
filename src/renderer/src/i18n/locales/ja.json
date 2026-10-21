@@ -16602,9 +16602,9 @@
                 "chatPaneBelow": "下のチャットペイン"
               },
               "splitChatRight": "右の分割チャット",
-              "splitChatRightDescription": "右側の分割ペインでアクティブなチャットを開きます。",
+              "splitChatRightDescription": "右側の分割ペインで新しいチャットを開きます。",
               "splitChatDown": "チャットを下に分割",
-              "splitChatDownDescription": "下の分割ペインでアクティブなチャットを開きます。"
+              "splitChatDownDescription": "下の分割ペインで新しいチャットを開きます。"
             }
           },
           "palette": {

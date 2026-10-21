@@ -16602,9 +16602,9 @@
                 "chatPaneBelow": "下面的聊天窗格"
               },
               "splitChatRight": "右侧拆分聊天",
-              "splitChatRightDescription": "在右侧的拆分窗格中打开活动聊天。",
+              "splitChatRightDescription": "在右侧的拆分窗格中打开新聊天。",
               "splitChatDown": "拆分聊天",
-              "splitChatDownDescription": "在下面的拆分窗格中打开活动聊天。"
+              "splitChatDownDescription": "在下面的拆分窗格中打开新聊天。"
             }
           },
           "palette": {

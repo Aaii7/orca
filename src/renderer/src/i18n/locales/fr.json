@@ -16710,9 +16710,9 @@
                 "chatPaneBelow": "volet de discussion ci-dessous"
               },
               "splitChatRight": "Diviser le chat à droite",
-              "splitChatRightDescription": "Ouvrez le chat actif dans un volet divisé à droite.",
+              "splitChatRightDescription": "Ouvrez un nouveau chat dans un volet divisé à droite.",
               "splitChatDown": "Diviser la discussion",
-              "splitChatDownDescription": "Ouvrez le chat actif dans un volet divisé ci-dessous."
+              "splitChatDownDescription": "Ouvrez un nouveau chat dans un volet divisé ci-dessous."
             }
           },
           "palette": {

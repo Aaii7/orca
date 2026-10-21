@@ -16597,9 +16597,9 @@
                 "chatPaneBelow": "panel de chat abajo"
               },
               "splitChatRight": "Dividir chat a la derecha",
-              "splitChatRightDescription": "Abre el chat activo en un panel dividido a la derecha.",
+              "splitChatRightDescription": "Abre un chat nuevo en un panel dividido a la derecha.",
               "splitChatDown": "Dividir chat abajo",
-              "splitChatDownDescription": "Abre el chat activo en un panel dividido abajo."
+              "splitChatDownDescription": "Abre un chat nuevo en un panel dividido abajo."
             }
           },
           "palette": {

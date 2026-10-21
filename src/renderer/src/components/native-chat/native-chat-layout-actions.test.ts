@@ -31,7 +31,6 @@ describe('native chat layout actions', () => {
 
     expect(target).toEqual({ kind: 'workspace-tab', unifiedTabId: 'chat', groupId: 'group' })
     expect(canRunNativeChatSplitTarget(state, target)).toBe(true)
-
   })
 
   it('resolves terminal-backed chat mode to the existing pane split path', () => {

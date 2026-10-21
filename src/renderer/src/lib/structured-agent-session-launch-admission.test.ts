@@ -280,12 +280,11 @@ describe('a structured chat launch on this machine', () => {
   it("opens a new agent tab's terminal with the typed prompt when the caller names none", async () => {
     mocks.createSupport.mockResolvedValue({ supported: false })
     mocks.launchAgentInNewTab.mockReturnValue({ surface: { kind: 'local-terminal', tabId: 't' } })
-    const groupId = useAppStore.getState().ensureWorktreeRootGroup(WORKTREE)
 
     const launch = beginStructuredAgentSessionProvisionalLaunch({
       plan: localPlan(),
       hooks: {},
-      targetGroupId: groupId,
+      targetGroupId: 'group-1',
       declinedTerminal: { agentArgs: '--model opus' }
     })
 
@@ -294,7 +293,7 @@ describe('a structured chat launch on this machine', () => {
       expect.objectContaining({
         agent: 'claude',
         worktreeId: WORKTREE,
-        groupId,
+        groupId: 'group-1',
         prompt: 'fix the flaky test',
         agentArgs: '--model opus',
         agentSessionLaunchPlan: expect.objectContaining({ route: 'terminal-tui' })

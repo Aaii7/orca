@@ -16602,9 +16602,9 @@
                 "chatPaneBelow": "아래 채팅 창"
               },
               "splitChatRight": "채팅을 오른쪽으로 분할",
-              "splitChatRightDescription": "오른쪽 분할 창에서 활성 채팅을 엽니다.",
+              "splitChatRightDescription": "오른쪽 분할 창에서 새 채팅을 엽니다.",
               "splitChatDown": "채팅 분할",
-              "splitChatDownDescription": "아래 분할 창에서 활성 채팅을 엽니다."
+              "splitChatDownDescription": "아래 분할 창에서 새 채팅을 엽니다."
             }
           },
           "palette": {

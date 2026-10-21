@@ -324,8 +324,7 @@ export default function TabGroupPanel({
         ref={setBodyRef}
         data-tab-group-body-id={groupId}
         data-worktree-id={worktreeId}
-        tabIndex={-1}
-        className="relative flex-1 min-h-0 overflow-hidden focus-visible:outline-none"
+        className="relative flex-1 min-h-0 overflow-hidden"
         style={bodyAnchorStyle}
       >
         {/* Why: empty anchor so the agent-sessions tour reads as a terminal-area tip, not toolbar chrome. */}
