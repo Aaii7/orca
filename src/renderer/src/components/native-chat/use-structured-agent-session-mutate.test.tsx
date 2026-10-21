@@ -237,6 +237,38 @@ function heldStops() {
 const stop = (current: ReturnType<typeof render>['current'], turnId = 'turn-1') =>
   current.mutate('agentSession.cancel', 'agentSession.cancel', { turnId })
 
+it.each([
+  [false, { turnId: 'turn-1' }],
+  [true, { turnId: 'turn-1' }],
+  [true, { turnId: 'background-tasks', scope: 'background-tasks', taskId: 'task-command' }]
+] as const)('keeps an admitted Stop after closure (quiet=%s, %j)', async (quiet, fields) => {
+  const capability = Promise.withResolvers<boolean>()
+  mocks.hostAnswersRepeatedStops.mockReturnValue(capability.promise)
+  mocks.call.mockResolvedValue({ ok: true, value: { cancelled: true } })
+  const stateRef = { current: { fence: 3 } }
+  const target = { kind: 'environment', environmentId: 'host-A' } as const
+  const view = renderHook(() =>
+    useStructuredAgentSessionMutate({ sessionId: 'session-A', target, stateRef })
+  )
+  const isCurrent = view.result.current.capturePresentation()
+  const pending = view.result.current.write('agentSession.cancel', 'agentSession.cancel', fields)
+  expect(mocks.call).not.toHaveBeenCalled()
+  stateRef.current.fence = 4
+  view.unmount()
+  capability.resolve(quiet)
+  expect(await pending).toEqual({ kind: 'done', value: { cancelled: true } })
+  expect(mocks.call).toHaveBeenCalledExactlyOnceWith(target, 'agentSession.cancel', {
+    ...fields,
+    envelope: {
+      sessionId: 'session-A',
+      clientOperationId: 'operation-1',
+      expectedRuntimeFence: 3,
+      payloadFingerprint: expect.any(String)
+    }
+  })
+  expect(isCurrent()).toBe(false)
+})
+
 describe('a Stop pressed again, against a host without the quiet repeated Stop', () => {
   it('joins the one still in flight instead of sending a second', async () => {
     const host = heldStops()

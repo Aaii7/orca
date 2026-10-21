@@ -111,19 +111,15 @@ export function useStructuredAgentSessionMutate(args: {
       fingerprintMethod: string,
       fields: Record<string, unknown>,
       /** The fence when the press happened, read before any await, so a write never retargets. */
-      pressedFence: number | null = stateRef.current.fence
+      pressedFence: number
     ): Promise<StructuredAgentSessionWriteOutcome<T>> => {
-      if (!enabled || !enabledRef.current || pressedFence === null) {
-        return { kind: 'dropped' }
-      }
-      const targetFence = pressedFence
       let result: AgentSessionMutationResult<T>
       try {
         result = await callStructuredAgentSession<AgentSessionMutationResult<T>>(target, method, {
           envelope: {
             sessionId,
             clientOperationId: structuredSessionOperationId(),
-            expectedRuntimeFence: targetFence,
+            expectedRuntimeFence: pressedFence,
             payloadFingerprint: structuredAgentSessionPayloadFingerprint({
               method: fingerprintMethod,
               sessionId,
@@ -153,7 +149,7 @@ export function useStructuredAgentSessionMutate(args: {
       }
       return { kind: 'done', value: result.value }
     },
-    [agentName, enabled, sessionId, stateRef, target]
+    [agentName, sessionId, target]
   )
 
   const write = useCallback(
@@ -163,6 +159,9 @@ export function useStructuredAgentSessionMutate(args: {
       fields: Record<string, unknown>
     ): Promise<StructuredAgentSessionWriteOutcome<T>> => {
       const pressedFence = stateRef.current.fence
+      if (!enabled || !enabledRef.current || pressedFence === null) {
+        return { kind: 'dropped' }
+      }
       if (
         !namesWhatItStops(fingerprintMethod, fields) ||
         (await supportsStructuredAgentSessionQuietRepeatedStop(target))
@@ -191,7 +190,7 @@ export function useStructuredAgentSessionMutate(args: {
       })
       return stopping
     },
-    [send, sessionId, stateRef, target]
+    [enabled, send, sessionId, stateRef, target]
   )
 
   const mutate = useCallback(
