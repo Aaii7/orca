@@ -24,6 +24,7 @@ vi.mock('sonner', () => ({
 
 import { runSourceControlAgentActionStart } from './runSourceControlAgentActionStart'
 import { getDefaultSettings } from '../../../../shared/constants'
+import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
 
 function buildArgs(
@@ -504,5 +505,38 @@ it('launches a recipe being saved to the repository as its next launch will', as
     { type: 'repo', repoId: 'repo-1' },
     'fixCommitFailure',
     recipe
+  )
+  const firstLaunch = mocks.launchAgentInNewTab.mock.lastCall?.[0]
+  const saved = saveSourceControlActionRecipe({
+    target: { type: 'repo', repoId: 'repo-1' },
+    settings,
+    repo,
+    actionId: 'fixCommitFailure',
+    recipe: mocks.onSaveAgentDefault.mock.lastCall?.[2]
+  })
+  if (!('update' in saved)) {
+    throw new Error('Expected repository save')
+  }
+  const savedRepo = { ...repo, sourceControlAi: saved.update.sourceControlAi ?? undefined }
+  const replay = resolveSourceControlActionRecipe({
+    settings,
+    repo: savedRepo,
+    actionId: 'fixCommitFailure'
+  })
+  await runSourceControlAgentActionStart(
+    buildArgs({
+      ...args,
+      recipe: replay,
+      repo: savedRepo,
+      saveTargetValue: 'none',
+      actionId: 'fixCommitFailure'
+    })
+  )
+  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).toMatchObject({
+    agentArgs: firstLaunch.agentArgs,
+    sessionOptions: firstLaunch.sessionOptions
+  })
+  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).not.toHaveProperty(
+    'sessionOptionsYieldToAgentArgs'
   )
 })

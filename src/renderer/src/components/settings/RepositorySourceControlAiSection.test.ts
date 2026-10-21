@@ -21,7 +21,10 @@ import {
 } from './repository-source-control-ai-draft'
 import { withRepoAiActionAgent } from './repository-source-control-ai-action-agent-draft'
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
-import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
+import {
+  saveSourceControlActionRecipe,
+  toSourceControlAiRepoUpdate
+} from '../../../../shared/source-control-ai-recipe-save'
 import { sourceControlActionRecipeMatchesTarget } from '../right-sidebar/source-control-action-recipe-match'
 import { SourceControlActionAgentPicker } from './SourceControlActionAgentPicker'
 import { RepositorySourceControlAiActionRows } from './RepositorySourceControlAiActionRows'
@@ -288,38 +291,49 @@ describe('dropRepoLegacyInstructionForAction', () => {
   })
 })
 
-it('a repository surface-only edit keeps inherited explicit empty arguments and same-agent options', () => {
-  const settings = useAppStore.getState().settings!
-  const launchPreferences = {
-    agentId: 'codex' as const,
-    model: 'saved',
-    permissionMode: 'ask' as const
-  }
-  const sourceSettings = {
-    ...settings,
-    sourceControlAi: {
-      ...settings.sourceControlAi!,
-      actions: { fixChecks: { agentId: 'codex' as const, agentArgs: '', launchPreferences } }
+it.each(['', '--model raw'])(
+  'a repository surface edit saves the complete target and keeps its arguments (%s)',
+  (agentArgs) => {
+    const settings = useAppStore.getState().settings!
+    const launchPreferences = {
+      agentId: 'codex' as const,
+      model: 'saved',
+      permissionMode: 'ask' as const
     }
+    const sourceSettings = {
+      ...settings,
+      sourceControlAi: {
+        ...settings.sourceControlAi!,
+        actions: { fixChecks: { agentId: 'codex' as const, agentArgs: '', launchPreferences } }
+      }
+    }
+    const edited = withRepoAiActionAgent(
+      { actionOverrides: { fixChecks: { commandInputTemplate: '{basePrompt}', agentArgs } } },
+      sourceSettings,
+      'fixChecks',
+      'codex',
+      { surface: 'terminal' }
+    )
+    expect(edited.actionOverrides?.fixChecks).toMatchObject({
+      agentId: 'codex',
+      agentArgs,
+      launchPreferences,
+      surface: 'terminal'
+    })
+    const payload = toSourceControlAiRepoUpdate(edited).sourceControlAi
+    const replay = resolveSourceControlActionRecipe({
+      settings: sourceSettings,
+      repo: { sourceControlAi: payload ?? undefined },
+      actionId: 'fixChecks'
+    })
+    expect(replay).toMatchObject({ agentArgs, surface: 'terminal', launchPreferences })
+    expect(replay.launchPreferencesYieldToAgentArgs).toBeUndefined()
+    const changedAgent = withRepoAiActionAgent(edited, sourceSettings, 'fixChecks', 'claude', {
+      surface: 'chat'
+    })
+    expect(changedAgent.actionOverrides?.fixChecks?.launchPreferences).toBeUndefined()
   }
-  const edited = withRepoAiActionAgent(
-    { actionOverrides: { fixChecks: { commandInputTemplate: '{basePrompt}' } } },
-    sourceSettings,
-    'fixChecks',
-    'codex',
-    { surface: 'terminal' }
-  )
-  expect(edited.actionOverrides?.fixChecks).toMatchObject({
-    agentId: 'codex',
-    agentArgs: '',
-    launchPreferences,
-    surface: 'terminal'
-  })
-  const changedAgent = withRepoAiActionAgent(edited, sourceSettings, 'fixChecks', 'claude', {
-    surface: 'chat'
-  })
-  expect(changedAgent.actionOverrides?.fixChecks?.launchPreferences).toBeUndefined()
-})
+)
 
 it('keeps default and missing-agent editors disabled only until the host inventory settles', async () => {
   const settings = useAppStore.getState().settings!

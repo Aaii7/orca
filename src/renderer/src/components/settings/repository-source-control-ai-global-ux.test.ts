@@ -304,7 +304,7 @@ describe('editing one repository action', () => {
     expect(edited.launchPreferencesYieldToAgentArgs).toBeUndefined()
   })
 
-  it('saves a prompt edit without authoring args the user never typed or touching a sibling', () => {
+  it('saves a prompt edit without authoring args the user never typed or touching a sibling', async () => {
     const sibling = { agentArgs: '--repo' }
     const cleared = {
       fixCommitFailure: { agentId: 'codex' as const, agentArgs: null },
@@ -314,6 +314,33 @@ describe('editing one repository action', () => {
       fixCommitFailure: expect.objectContaining({ agentArgs: null, commandInputTemplate: 'mine' }),
       fixPushFailure: sibling
     })
+    const updateRepo = vi.fn().mockResolvedValue(true)
+    const persistedRepoAi = { actionOverrides: cleared }
+    const { result } = renderHook(() =>
+      useRepositorySourceControlAiGlobalUx({
+        repoId: 'repo-1',
+        persistedRepoAi,
+        settings,
+        source: settings.sourceControlAi!,
+        updateRepo
+      })
+    )
+    act(() => result.current.updateActionTemplate('fixCommitFailure', 'mine'))
+    await act(async () => result.current.saveActionRecipeText('fixCommitFailure'))
+    const payload = JSON.parse(JSON.stringify(updateRepo.mock.calls[0]?.[1].sourceControlAi))
+    expect(payload.actionOverrides.fixCommitFailure).toMatchObject({
+      agentId: 'codex',
+      agentArgs: null,
+      commandInputTemplate: 'mine'
+    })
+    expect(payload.actionOverrides.fixPushFailure).toEqual(sibling)
+    expect(
+      resolveSourceControlActionRecipe({
+        settings,
+        repo: { sourceControlAi: payload },
+        actionId: 'fixCommitFailure'
+      }).agentArgs
+    ).toBe('')
     // Absent args under nonempty Globals: the edited action keeps the args it ran with.
     const absent = { actionOverrides: { fixCommitFailure: { agentId: 'codex' as const } } }
     expect(reload(editPrompt(absent, 'fixCommitFailure'), 'fixCommitFailure').agentArgs).toBe(
