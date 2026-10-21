@@ -163,6 +163,7 @@ describe('SourceControlAgentActionDialogForm', () => {
 
     const globalMarkup = renderForm({
       settings,
+      recipe: { agentId: 'codex', commandInputTemplate: '{basePrompt}' },
       repo: repoWithoutSavedRecipe,
       saveTargets,
       saveTargetValue: 'global'

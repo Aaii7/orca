@@ -25,7 +25,7 @@ import type { AgentComboboxSurfaceRows } from '@/components/agent/agent-combobox
 import { SourceControlAgentCliArgsField } from './SourceControlAgentCliArgsField'
 import { SourceControlActionVariableChips } from '../source-control/SourceControlActionVariableChips'
 import { describeSourceControlActionModel } from '../settings/source-control-action-model-copy'
-import { sourceControlActionRecipeMatchesTarget } from './source-control-action-recipe-match'
+import { sourceControlActionRecipeSaveMatchesTarget } from './source-control-action-recipe-match'
 import type { SourceControlAgentScopeNote } from './source-control-agent-action-dialog-result'
 import { translate } from '@/i18n/i18n'
 
@@ -126,7 +126,7 @@ export function SourceControlAgentActionDialogForm({
   const selectedLaunchRecipeAlreadySaved = Boolean(
     selectedRecipe &&
     selectedSaveTarget &&
-    sourceControlActionRecipeMatchesTarget({
+    sourceControlActionRecipeSaveMatchesTarget({
       actionId,
       target: selectedSaveTarget,
       recipe: selectedRecipe,

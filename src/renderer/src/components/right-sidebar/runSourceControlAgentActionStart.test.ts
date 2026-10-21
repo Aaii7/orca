@@ -27,6 +27,12 @@ import { getDefaultSettings } from '../../../../shared/constants'
 import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
 import { saveSourceControlAiActionRecipeForTarget } from './source-control/ai/recipe-persistence'
+import { sourceControlActionLaunchOptions } from '../../../../shared/source-control-action-launch-preferences'
+import {
+  resolveAgentLaunchCommand,
+  terminalSessionOptionInputs
+} from '../../../../shared/tui-agent-launch-command'
+import type { Repo } from '../../../../shared/repo-types'
 
 function buildArgs(
   overrides: Partial<Parameters<typeof runSourceControlAgentActionStart>[0]> = {}
@@ -529,72 +535,72 @@ it.each([undefined, '', '--add-dir /extra'])(
   }
 )
 // Saved to the repository, the copied choice owns the action there, as on every later launch.
-it('launches a recipe being saved to the repository as its next launch will', async () => {
-  vi.clearAllMocks()
-  const base = getDefaultSettings('/tmp')
-  const terra = { agentId: 'codex' as const, model: 'gpt-5.6-terra' }
-  const fixCommitFailure = { agentId: null, commandInputTemplate: '', launchPreferences: terra }
-  const settings = {
-    ...base,
-    sourceControlAi: { ...base.sourceControlAi!, actions: { fixCommitFailure } }
-  }
-  const legacy = { agentArgs: '--model gpt-5.6-sol' }
-  const repo = {
-    id: 'repo-1',
-    sourceControlAi: { actionOverrides: { fixCommitFailure: legacy } }
-  }
-  const shown = resolveSourceControlActionRecipe({ settings, repo, actionId: 'fixCommitFailure' })
-  mocks.launchAgentInNewTab.mockReturnValue({ surface: { kind: 'local-terminal', tabId: 't' } })
-  const agentArgs = '--model gpt-5.6-luna'
-  const recipe = { ...shown, agentArgs }
-  const args = { recipe, settings, repo, saveTargetValue: 'repo', repoId: 'repo-1' }
-
-  await runSourceControlAgentActionStart(buildArgs({ ...args, actionId: 'fixCommitFailure' }))
-
-  expect(shown.launchPreferencesYieldToAgentArgs).toBe(true)
-  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).toMatchObject({
-    agentArgs,
-    sessionOptions: { model: 'gpt-5.6-terra' }
-  })
-  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).not.toHaveProperty(
-    'sessionOptionsYieldToAgentArgs'
-  )
-  expect(mocks.onSaveAgentDefault).toHaveBeenCalledWith(
-    { type: 'repo', repoId: 'repo-1' },
-    'fixCommitFailure',
-    recipe
-  )
-  const firstLaunch = mocks.launchAgentInNewTab.mock.lastCall?.[0]
-  const saved = saveSourceControlActionRecipe({
-    target: { type: 'repo', repoId: 'repo-1' },
-    settings,
-    repo,
-    actionId: 'fixCommitFailure',
-    recipe: mocks.onSaveAgentDefault.mock.lastCall?.[2]
-  })
-  if (!('update' in saved)) {
-    throw new Error('Expected repository save')
-  }
-  const savedRepo = { ...repo, sourceControlAi: saved.update.sourceControlAi ?? undefined }
-  const replay = resolveSourceControlActionRecipe({
-    settings,
-    repo: savedRepo,
-    actionId: 'fixCommitFailure'
-  })
-  await runSourceControlAgentActionStart(
-    buildArgs({
-      ...args,
-      recipe: replay,
-      repo: savedRepo,
-      saveTargetValue: 'none',
-      actionId: 'fixCommitFailure'
+it.each(['--model gpt-5.6-luna', '--model gpt-5.6-sol'])(
+  'persists the complete target for changed or unchanged Customize arguments %s',
+  async (agentArgs) => {
+    vi.clearAllMocks()
+    const base = getDefaultSettings('/tmp')
+    const terra = { agentId: 'codex' as const, model: 'gpt-5.6-terra' }
+    const fixCommitFailure = {
+      agentId: null,
+      commandInputTemplate: '{basePrompt}',
+      launchPreferences: terra
+    }
+    const settings = {
+      ...base,
+      sourceControlAi: { ...base.sourceControlAi!, actions: { fixCommitFailure } }
+    }
+    const legacy = { agentArgs: '--model gpt-5.6-sol' }
+    const repo: Pick<Repo, 'id' | 'sourceControlAi'> = {
+      id: 'repo-1',
+      sourceControlAi: { actionOverrides: { fixCommitFailure: legacy } }
+    }
+    const shown = resolveSourceControlActionRecipe({ settings, repo, actionId: 'fixCommitFailure' })
+    mocks.launchAgentInNewTab.mockReturnValue({ surface: { kind: 'local-terminal', tabId: 't' } })
+    const recipe = { ...shown, agentArgs }
+    mocks.onSaveAgentDefault.mockImplementation((target, actionId, recipe) => {
+      const saved = saveSourceControlActionRecipe({ target, actionId, recipe, settings, repo })
+      if ('update' in saved) {
+        repo.sourceControlAi = saved.update.sourceControlAi ?? undefined
+      }
     })
-  )
-  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).toMatchObject({
-    agentArgs: firstLaunch.agentArgs,
-    sessionOptions: firstLaunch.sessionOptions
-  })
-  expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).not.toHaveProperty(
-    'sessionOptionsYieldToAgentArgs'
-  )
-})
+    const args = { recipe, agentArgs, settings, repo, saveTargetValue: 'repo', repoId: 'repo-1' }
+
+    await runSourceControlAgentActionStart(buildArgs({ ...args, actionId: 'fixCommitFailure' }))
+
+    expect(shown.launchPreferencesYieldToAgentArgs).toBe(true)
+    expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).toMatchObject({
+      agentArgs,
+      sessionOptions: { model: 'gpt-5.6-terra' }
+    })
+    expect(mocks.launchAgentInNewTab.mock.lastCall?.[0]).not.toHaveProperty(
+      'sessionOptionsYieldToAgentArgs'
+    )
+    expect(repo.sourceControlAi?.actionOverrides?.fixCommitFailure).toEqual({
+      agentId: null,
+      commandInputTemplate: '{basePrompt}',
+      agentArgs,
+      launchPreferences: terra
+    })
+    const next = resolveSourceControlActionRecipe({ settings, repo, actionId: 'fixCommitFailure' })
+    const nextOptions = sourceControlActionLaunchOptions(next, 'codex')
+    expect(nextOptions).toEqual({ sessionOptions: { model: terra.model } })
+    const command = resolveAgentLaunchCommand({
+      agent: 'codex',
+      cmdOverrides: {},
+      platform: 'linux',
+      shell: 'posix',
+      agentArgs,
+      ...terminalSessionOptionInputs({ agent: 'codex', agentArgs, shell: 'posix', ...nextOptions })
+    })
+    expect(command).toMatchObject({ ok: true, appliedSessionOptions: { model: terra.model } })
+    if (command.ok) {
+      expect(command.command).not.toContain(agentArgs.split(' ')[1])
+    }
+    expect(mocks.onSaveAgentDefault).toHaveBeenCalledTimes(1)
+    await runSourceControlAgentActionStart(
+      buildArgs({ ...args, recipe: next, actionId: 'fixCommitFailure' })
+    )
+    expect(mocks.onSaveAgentDefault).toHaveBeenCalledTimes(1)
+  }
+)
