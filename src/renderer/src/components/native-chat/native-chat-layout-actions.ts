@@ -1,3 +1,6 @@
+import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
+import { getAgentLabel } from '@/lib/agent-catalog'
 import type { AppState } from '@/store/types'
 import { useAppStore } from '@/store'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
@@ -98,7 +101,14 @@ export function runNativeChatSplitTarget(
   })
   if (!result) {
     closePane()
-    return false
+    toast.error(
+      translate(
+        'auto.components.tab.bar.QuickLaunchButton.465e432ef1',
+        'Could not build launch command for {{value0}}.',
+        { value0: getAgentLabel(source.agent) }
+      )
+    )
+    return true
   }
   // Settlement cleanup preserves any pane that currently contains a tab.
   void result.structuredSettlement?.then(closePane, closePane)

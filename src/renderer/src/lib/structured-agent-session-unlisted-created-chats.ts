@@ -1,7 +1,7 @@
 import type { ExecutionHostId } from '../../../shared/execution-host'
 
 // Why: a host list built before a create landed can arrive after its reply; until a list shows
-// the chat, omission is no evidence it closed. Bounded so a chat the host never lists still goes.
+// the chat, omission is no evidence it closed. Expiry ends protection; the next list decides.
 const UNLISTED_CREATED_CHAT_TTL_MS = 30_000
 
 type UnlistedCreatedChat = {
@@ -30,15 +30,6 @@ export function recordUnlistedCreatedChat(
         return
       }
       unlistedCreatedChats.delete(key)
-      // Unchanged lists are never republished, so re-read the one an omission was held against.
-      // Lazy: tab retirement reaches this module through launch publication.
-      void import('@/runtime/structured-agent-session-tab-retirement')
-        .then(({ reacceptStructuredSessionHostTabs }) =>
-          reacceptStructuredSessionHostTabs(executionHostId, worktreeId)
-        )
-        .catch((error: unknown) =>
-          console.warn('[native-chat] re-reading an unlisted chat failed', error)
-        )
     }, UNLISTED_CREATED_CHAT_TTL_MS)
   }
   unlistedCreatedChats.set(key, record)

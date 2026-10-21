@@ -1,14 +1,9 @@
 import type { StructuredLaunchSlotOwner } from '@/lib/structured-agent-session-launch-slot'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-types'
 import {
-  markStructuredAgentSessionLaunchesPublished,
-  publishedStructuredSessions
-} from '@/lib/structured-agent-session-launch-publication'
-import {
   hasStructuredAgentSessionLaunchCancellationTombstone,
   markStructuredAgentSessionLaunchCancelled
 } from '@/lib/structured-agent-session-launch-registry'
-import { toRuntimeExecutionHostId, type ExecutionHostId } from '../../../shared/execution-host'
 import { forgetUnlistedCreatedChat } from '@/lib/structured-agent-session-unlisted-created-chats'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { discardStructuredAgentSessionChatSends } from '@/lib/structured-agent-session-launch-prompt'
@@ -18,8 +13,7 @@ import { closeStructuredAgentSession } from './structured-agent-session-close'
 import { withLocalSessionTabCloseOwner } from './local-session-tab-close-owner'
 import {
   executionHostIdForStructuredTarget,
-  structuredAgentSessionFocusOwner,
-  structuredAgentSessionTargetForHost
+  structuredAgentSessionFocusOwner
 } from './structured-agent-session-owner'
 import { clearWebSessionCloseIntent, recordWebSessionCloseIntent } from './web-session-close-intent'
 import type { WebSessionIntentOwner } from './web-session-intent-owner'
@@ -108,20 +102,6 @@ function reacceptHostSessionTabs(
   )
 }
 
-/** Re-reads a worktree whose lists were held back from dropping a chat created here. */
-export function reacceptStructuredSessionHostTabs(
-  executionHostId: ExecutionHostId,
-  worktreeId: string
-): void {
-  const target = structuredAgentSessionTargetForHost(executionHostId)
-  if (target) {
-    const intentOwner = captureWebSessionIntentOwner(
-      structuredAgentSessionFocusOwner(target).environmentId
-    )
-    reacceptHostSessionTabs(target, worktreeId, intentOwner)
-  }
-}
-
 /** Mark cancellation before removing the row so a late host publication cannot resurrect it. */
 export function beginStructuredAgentSessionTabClose(args: {
   target: RuntimeClientTarget
@@ -170,25 +150,6 @@ export function beginStructuredAgentSessionTabClose(args: {
       reacceptHostSessionTabs(args.target, args.worktreeId, intentOwner)
     }
   })
-}
-
-/**
- * A paired host's frame, as this client may apply it: chats cancelled before their create landed
- * are retired on that host, and the rest settle any launch still waiting to learn they exist.
- */
-export function acceptPairedHostStructuredSessions(
-  frame: RuntimeMobileSessionTabsResult,
-  environmentId: string
-): RuntimeMobileSessionTabsResult {
-  const snapshot = suppressCancelledStructuredSessionTabs(frame, {
-    kind: 'environment',
-    environmentId
-  })
-  markStructuredAgentSessionLaunchesPublished(
-    toRuntimeExecutionHostId(environmentId),
-    publishedStructuredSessions([snapshot])
-  )
-  return snapshot
 }
 
 /** A host snapshot containing a cancelled session is suppressed and retired again idempotently. */

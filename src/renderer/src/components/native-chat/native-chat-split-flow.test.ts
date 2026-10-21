@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { createTestStore } from '@/store/slices/store-test-helpers'
 import { createTabsSliceMockApi } from '@/store/slices/tabs-slice-test-harness'
 
 let store: ReturnType<typeof createTestStore>
 const launch = vi.hoisted(() => vi.fn())
 vi.mock('@/store', () => ({ useAppStore: { getState: () => store.getState() } }))
+vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 vi.mock('@/lib/launch-agent-in-new-tab', () => ({ launchAgentInNewTab: launch }))
 createTabsSliceMockApi()
 
@@ -45,7 +47,8 @@ it.each(['right', 'down'] as const)(
     expect(store.getState().unifiedTabsByWorktree[worktreeId]).toEqual([source])
     const layout = store.getState().layoutByWorktree[worktreeId]
     launch.mockReturnValue(null)
-    expect(runNativeChatSplitTarget(target, direction)).toBe(false)
+    expect(runNativeChatSplitTarget(target, direction)).toBe(true)
+    expect(toast.error).toHaveBeenLastCalledWith('Could not build launch command for Codex.')
     expect(store.getState().layoutByWorktree[worktreeId]).toEqual(layout)
   }
 )
