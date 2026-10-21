@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
 import { getDefaultSettings } from '../../../../../shared/constants'
+import type { HostedReviewInfo } from '../../../../../shared/hosted-review'
 import type { PendingPRCommentAiAck } from '../pr-comments-ai-launch-ack'
 import { clearPendingPRCommentAiAck, takePendingPRCommentAiAck } from '../pr-comments-ai-launch-ack'
 import type { ChecksAgentComposerState } from './panel-state-types'
@@ -63,7 +64,18 @@ function fixture(saved = true) {
   const setComments = vi.fn()
   const isCurrentAsyncResult = (key: string) => key === context.current
   const resolveThread = vi.fn().mockResolvedValue(true)
+  let composerState: ChecksAgentComposerState | null = null
   const composer = vi.fn<(value: ChecksAgentComposerState | null) => void>()
+  const review: HostedReviewInfo = {
+    provider: 'github',
+    number: 42,
+    title: 'Review',
+    state: 'open',
+    url: 'https://github.com/acme/repo/pull/42',
+    status: 'pending',
+    updatedAt: '',
+    mergeable: 'CONFLICTING'
+  }
   const view = renderHook(
     ({ head }) => {
       context.current = checksPanelAsyncResultKey(repo.id, 'main', 42, null, head)
@@ -92,7 +104,7 @@ function fixture(saved = true) {
         setComments,
         setCommentsError: vi.fn(),
         setCommentsLoading: (value) => {
-          loading.current = value
+          loading.current = typeof value === 'function' ? value(loading.current) : value
         }
       })
       const ack = useChecksPanelAiAcknowledgement({
@@ -115,17 +127,8 @@ function fixture(saved = true) {
       })
       return useChecksPanelAiQueue({
         ...ack,
-        activeConflictReview: null,
-        activeReview: {
-          provider: 'github',
-          number: 42,
-          title: 'Review',
-          state: 'open',
-          url: 'https://github.com/acme/repo/pull/42',
-          status: 'pending',
-          updatedAt: '',
-          mergeable: 'MERGEABLE'
-        },
+        activeConflictReview: review,
+        activeReview: review,
         activeWorktree: worktree,
         activeWorktreeId: worktree.id,
         activeWorktreePath: worktree.path,
@@ -141,7 +144,10 @@ function fixture(saved = true) {
         prNumber: 42,
         repo,
         resolveCommentsWithAIDisabledReason: undefined,
-        setAgentComposerState: composer,
+        setAgentComposerState: (value) => {
+          composerState = typeof value === 'function' ? value(composerState) : value
+          composer(composerState)
+        },
         sourceControlAiActionsVisible: true,
         stateRequestKey: context.current
       })
@@ -223,6 +229,38 @@ it('owns detection single-flight, returns failed delivery to the editor, then co
     expect.objectContaining({ repoId: 'repo-1' })
   )
   expect(takePendingPRCommentAiAck()).toBeNull()
+})
+
+it('starts conflict resolution while the original comments acknowledgement is pending', async () => {
+  const provider = deferred<boolean>()
+  launch.mockReturnValue({
+    surface: { kind: 'local-terminal', tabId: 'tab-1' },
+    promptDeliveryResult: Promise.resolve({ delivered: true, failureNotified: false })
+  })
+  const f = fixture()
+  f.resolveThread.mockReturnValueOnce(provider.promise)
+  act(() => f.result.current.handleResolveCommentsWithAI(f.groups))
+  await act(async () => f.inventory.resolve(['codex']))
+  await waitFor(() => expect(f.resolveThread).toHaveBeenCalledOnce())
+  expect(f.busy.current).toBe(true)
+  act(() => {
+    f.result.current.handleResolveCommentsWithAI(f.groups)
+    void f.result.current.handleResolveConflictsWithAI()
+    void f.result.current.handleResolveConflictsWithAI()
+  })
+  await waitFor(() => expect(launch).toHaveBeenCalledTimes(2))
+  expect(launch.mock.calls[1]?.[0]).toMatchObject({ launchSource: 'conflict_resolution' })
+  expect(f.busy.current).toBe(true)
+  await act(async () => provider.resolve(true))
+  await waitFor(() => expect(f.busy.current).toBe(false))
+  expect(f.resolveThread).toHaveBeenCalledOnce()
+  expect(f.resolveThread).toHaveBeenCalledWith(
+    '/repo',
+    42,
+    'thread-42',
+    true,
+    expect.objectContaining({ repoId: 'repo-1' })
+  )
 })
 
 it.each([false, true])(

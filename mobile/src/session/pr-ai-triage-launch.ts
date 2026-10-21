@@ -73,7 +73,8 @@ export async function launchAgentWithPrompt(args: {
     worktreeId: args.worktreeId,
     agent: resolved.agent,
     ...(projection.sessionOptions ? { chatOptions: projection.sessionOptions } : {}),
-    agentArgs: projection.agentArgs,
+    // The phone lacks the workspace shell needed to project inherited choices over raw flags.
+    agentArgs: projection.sessionOptionsYieldToAgentArgs ? undefined : projection.agentArgs,
     surface: projection.requestedSurface,
     prompt: { text, delivery: 'submit' },
     launchSource: args.launchSource

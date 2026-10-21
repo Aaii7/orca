@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render, cleanup, fireEvent } from '@testing-library/react'
 import './settings-persistence-test-fixture'
 import React from 'react'
+import type { TuiAgent } from '../../../../shared/tui-agent'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { normalizeRepoSourceControlAiOverrides } from '../../../../shared/source-control-ai'
 import type {
@@ -340,7 +341,7 @@ it('keeps default and missing-agent editors disabled only until the host invento
   useAppStore.setState({
     settings: { ...settings, experimentalNativeChat: false },
     detectedAgentIds: null,
-    ensureDetectedAgents: vi.fn(() => new Promise(() => {}))
+    ensureDetectedAgents: vi.fn(() => new Promise<TuiAgent[]>(() => {}))
   })
   const onPick = vi.fn()
   const picker = (agent: 'codex' | null) =>

@@ -350,6 +350,7 @@ describe('startFixChecksAgent', () => {
         launchSource: 'task_page',
         item: {
           id: 'pr-7',
+          repoId: 'repo-1',
           type: 'pr',
           number: 7,
           title: 'PR',

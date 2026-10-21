@@ -68,9 +68,6 @@ export function useChecksPanelAiQueue(model: ChecksPanelAiQueueInput) {
   } = model
   const savedStart = useSavedSourceControlActionStart()
   const openOrStart = (composer: ChecksAgentComposerState): void => {
-    if (commentResolutionAckBusyRef.current) {
-      return
-    }
     void savedStart.start(() => {
       const recipe = resolveSourceControlActionRecipe({
         settings: model.settings,
