@@ -211,11 +211,11 @@ export async function commitPtySpawn<Reply extends PtySpawnResult>(
 }
 
 /** An adopted claim attaches to a live owner: it publishes the owner's surface, not a new pane. */
-async function commitAdoptedAgentSession<Reply extends PtySpawnResult>(
+function commitAdoptedAgentSession<Reply extends PtySpawnResult>(
   input: PtySpawnCommitInput<Reply>,
   adopted: AgentSessionClaimedSpawnResult,
   providerReattachLaunchIdentity: ReturnType<typeof admitProviderReattachLaunchIdentity>
-): Promise<PtySpawnResult> {
+): PtySpawnResult | Promise<never> {
   const { state } = input
   const { result } = state
   const runtime = state.deps.runtime
@@ -238,7 +238,7 @@ async function commitAdoptedAgentSession<Reply extends PtySpawnResult>(
     }
   )
   if (rejectedRegistration) {
-    await rejectedRegistration
+    return rejectedRegistration
   }
   runtime?.noteTerminalSpawnCommit?.(result, input.expectedSourceBinding)
   runtime?.registerPreAllocatedHandleForPty(result.id, surface.terminalHandle)

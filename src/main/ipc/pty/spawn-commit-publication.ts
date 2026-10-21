@@ -53,12 +53,8 @@ export function publishCommittedPtySpawn<Reply extends PtySpawnResult>(
   if (input.hiddenDelivery === 'renderer-scoped' && input.initiallyHidden) {
     markRendererScopedHiddenAtCommit(state)
   }
-  if (
-    input.preAllocatedHandle &&
-    !state.stablePaneOwner?.handle &&
-    runtime?.registerPreAllocatedHandleForPty
-  ) {
-    runtime.registerPreAllocatedHandleForPty(result.id, input.preAllocatedHandle)
+  if (input.preAllocatedHandle && !state.stablePaneOwner?.handle) {
+    runtime?.registerPreAllocatedHandleForPty(result.id, input.preAllocatedHandle)
     if (state.agentTeamsLeaderHandle !== undefined) {
       // The registered handle now owns the Agent Teams leader this spawn prepared.
       state.agentTeamsLeaderHandle = null
