@@ -155,9 +155,15 @@ describe('a write pressed again', () => {
 })
 
 describe('a goal set while the agent rests', () => {
-  it('keeps the reply after the agent the host started for it moved the fence', async () => {
+  it.each([
+    'agentSession.threadGoal',
+    'agentSession.rewind',
+    'agentSession.conversationCommand',
+    'agentSession.setOption'
+  ])('keeps %s and a concurrent goal reply across startup', async (method) => {
     const stateRef = { current: { fence: 3 as number | null } }
     mocks.call.mockImplementation(async () => {
+      await Promise.resolve()
       stateRef.current.fence = 4
       return { ok: true, value: { change: 'set' } }
     })
@@ -171,9 +177,11 @@ describe('a goal set while the agent rests', () => {
 
     let answer: unknown
     await act(async () => {
-      answer = await current.mutate('agentSession.threadGoal', 'agentSession.threadGoal', {
-        change: { kind: 'set', objective: 'Ship the parser' }
+      const original = current.mutate(method, method, {})
+      await current.mutate('agentSession.threadGoal', 'agentSession.threadGoal', {
+        change: { kind: 'clear' }
       })
+      answer = await original
     })
 
     expect(answer).toEqual({ change: 'set' })

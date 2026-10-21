@@ -58,6 +58,7 @@ function createHarness(
   })
   const rendered = renderHook(() =>
     useStructuredAgentSessionQueuedMessages({
+      capturePresentation: () => () => true,
       enabled: overrides.enabled ?? true,
       queuedMessages: overrides.queuedMessages ?? [draft('draft-1', 1), draft('draft-2', 2)],
       queuePause: null,

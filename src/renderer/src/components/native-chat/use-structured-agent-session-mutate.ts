@@ -3,12 +3,9 @@
 // Every call is its own action with its own client operation id, so a press is never answered
 // from an earlier one. The host answers a second Stop of a named turn or task quietly; against an
 // older host that does not, this client joins one still on its way instead of stopping twice.
-// Every result is discarded unless the runtime fence it was issued against is still the current
-// one, except the reply to the conversation command, rewind or goal change a pane still waits on,
-// since each may start the agent and so move the fence itself. A write that did not happen is
-// reported once, in the person's words, by the caller that knows where to say it; nothing latches.
+// Command replies settle independently of provider generations; only late pane presentation expires.
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type { AgentSessionMutationResult } from '../../../../shared/agent-session-wire'
 import {
@@ -25,13 +22,14 @@ import {
   callStructuredAgentSession,
   supportsStructuredAgentSessionQuietRepeatedStop
 } from '@/runtime/structured-agent-session-client'
+import { structuredAgentSessionHostKey } from '@/runtime/structured-agent-session-host-capability'
 import { agentSessionWriteFailureText } from './agent-session-write-notice-text'
 
 export type StructuredAgentSessionWriteOutcome<T> =
   | { kind: 'done'; value: T }
   /** Refused or failed, with what to tell the person and the fact it was worded from. */
   | { kind: 'not-done'; notice: string; failure: AgentSessionWriteFailure }
-  /** Settled for an owner or session this pane no longer shows; there is nothing to say. */
+  /** Not dispatched, or a joined duplicate Stop whose failure was already reported. */
   | { kind: 'dropped' }
 
 type WriteArgs = [method: string, fingerprintMethod: string, fields: Record<string, unknown>]
@@ -43,12 +41,8 @@ export type StructuredAgentSessionWrite = <T>(
 /** A write whose failure is shown as a toast; the control that sent it is the way to try again. */
 export type StructuredAgentSessionMutate = <T>(...args: WriteArgs) => Promise<T | null>
 
-/** Writes the host may start the agent for before answering, moving the fence under the reply. */
-const MAY_START_THE_AGENT = new Set([
-  'agentSession.conversationCommand',
-  'agentSession.rewind',
-  'agentSession.threadGoal'
-])
+/** Captures the issuing pane visit for late presentation, never command or draft settlement. */
+export type CaptureStructuredAgentSessionPresentation = () => () => boolean
 
 /** A Stop naming its turn or task; one naming neither acts on whatever runs when the host reaches
  *  it, so a second press is a Stop of its own. */
@@ -82,28 +76,34 @@ export function useStructuredAgentSessionMutate(args: {
   sessionId: string
   target: RuntimeClientTarget
   enabled?: boolean
-  /** Read at settle time, not at call time: the fence can move while a request
-   *  is in flight, and a result from the previous fence is not this session's. */
+  /** Capture the original press fence for host admission, including older hosts. */
   stateRef: { current: { fence: number | null } }
   /** The chat's agent, which a refusal about it names. */
   agentName?: string
 }): {
   write: StructuredAgentSessionWrite
   mutate: StructuredAgentSessionMutate
+  capturePresentation: CaptureStructuredAgentSessionPresentation
 } {
   const { agentName, enabled = true, sessionId, stateRef, target } = args
   const inFlightStops = useRef(
     new Map<string, Promise<StructuredAgentSessionWriteOutcome<unknown>>>()
   )
   const enabledRef = useRef(enabled)
-  // The write that may start the agent this pane still waits on; only its reply may outlive a fence
-  // move. A newer one replaces it, and disabling the pane forgets it.
-  const commandInFlight = useRef<object | null>(null)
-  useEffect(() => {
-    // Why: update the gate after commit so render stays free of ref mutations.
+  const presentation = useRef<object | null>(null)
+  const hostKey = structuredAgentSessionHostKey(target)
+  useLayoutEffect(() => {
     enabledRef.current = enabled
-    commandInFlight.current = null
-  }, [enabled, sessionId])
+    presentation.current = enabled ? {} : null
+    return () => {
+      enabledRef.current = false
+      presentation.current = null
+    }
+  }, [enabled, hostKey, sessionId])
+  const capturePresentation = useCallback(() => {
+    const visit = presentation.current
+    return () => visit !== null && presentation.current === visit
+  }, [])
 
   const send = useCallback(
     async <T>(
@@ -117,21 +117,6 @@ export function useStructuredAgentSessionMutate(args: {
         return { kind: 'dropped' }
       }
       const targetFence = pressedFence
-      const request = {}
-      if (MAY_START_THE_AGENT.has(fingerprintMethod)) {
-        commandInFlight.current = request
-      }
-      // Whether this call's answer is still for what the pane shows. Another fence's result is about
-      // a runtime the pane replaced; a write that may itself start or stop the agent moves the fence
-      // under its own reply, so that reply is kept while this pane still waits on it. Called once,
-      // when the call settles.
-      const settlesHere = (): boolean => {
-        const waitedOn = commandInFlight.current === request
-        if (waitedOn) {
-          commandInFlight.current = null
-        }
-        return enabledRef.current && (stateRef.current.fence === targetFence || waitedOn)
-      }
       let result: AgentSessionMutationResult<T>
       try {
         result = await callStructuredAgentSession<AgentSessionMutationResult<T>>(target, method, {
@@ -148,30 +133,23 @@ export function useStructuredAgentSessionMutate(args: {
           ...fields
         })
       } catch (error) {
-        return settlesHere()
-          ? notDone(
-              agentSessionThrownFailure(
-                error,
-                error instanceof RuntimeRpcCallError ? error.code : undefined
-              ),
-              fingerprintMethod,
-              fields,
-              agentName
-            )
-          : { kind: 'dropped' }
+        return notDone(
+          agentSessionThrownFailure(
+            error,
+            error instanceof RuntimeRpcCallError ? error.code : undefined
+          ),
+          fingerprintMethod,
+          fields,
+          agentName
+        )
       }
       if (!result.ok) {
-        return settlesHere()
-          ? notDone(
-              agentSessionRefusalFailure(result.refusal),
-              fingerprintMethod,
-              fields,
-              agentName
-            )
-          : { kind: 'dropped' }
-      }
-      if (!settlesHere()) {
-        return { kind: 'dropped' }
+        return notDone(
+          agentSessionRefusalFailure(result.refusal),
+          fingerprintMethod,
+          fields,
+          agentName
+        )
       }
       return { kind: 'done', value: result.value }
     },
@@ -218,14 +196,15 @@ export function useStructuredAgentSessionMutate(args: {
 
   const mutate = useCallback(
     async <T>(...writeArgs: WriteArgs): Promise<T | null> => {
+      const isCurrent = capturePresentation()
       const outcome = await write<T>(...writeArgs)
-      if (outcome.kind === 'not-done') {
+      if (outcome.kind === 'not-done' && isCurrent()) {
         toast.error(outcome.notice)
       }
       return outcome.kind === 'done' ? outcome.value : null
     },
-    [write]
+    [capturePresentation, write]
   )
 
-  return { write, mutate }
+  return { write, mutate, capturePresentation }
 }

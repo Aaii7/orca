@@ -25,6 +25,7 @@ function harness(
   onSubmitted?: () => void
 ) {
   const structuredTransport = {
+    capturePresentation: () => () => true,
     send: vi.fn(() => true),
     dispatchCommand: (text: string) =>
       dispatchStructuredAgentSessionComposerCommand(text, {
@@ -197,4 +198,21 @@ describe("says a failed send in Orca's words, with the error it hit apart", () =
       { errorText: undefined }
     )
   })
+})
+
+it('settles captured command text without publishing obsolete notices', async () => {
+  const { send, structuredTransport } = harness('codex', { setObjective: async () => true })
+  const reply =
+    Promise.withResolvers<Awaited<ReturnType<typeof structuredTransport.dispatchCommand>>>()
+  let current = true
+  structuredTransport.capturePresentation = () => () => current
+  structuredTransport.dispatchCommand = () => reply.promise
+  updateNativeChatComposerDraft('tab-1:pane', { text: '/goal ship it' }, 'immediate')
+  const pending = send('/goal ship it', [])
+  current = false
+  updateNativeChatComposerDraft('tab-1:pane', { text: '/goal ship it next' }, 'immediate')
+  reply.resolve({ handled: true, accepted: true, error: null })
+  await pending
+  expect(readNativeChatComposerDraft('tab-1:pane').text).toBe(' next')
+  expect(structuredTransport.onError).not.toHaveBeenCalled()
 })

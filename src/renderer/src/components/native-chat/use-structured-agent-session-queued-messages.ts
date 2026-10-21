@@ -28,7 +28,10 @@ import {
   sendingQueuedMessageCards,
   type QueuedMessageCard
 } from './structured-agent-session-queued-cards'
-import type { StructuredAgentSessionMutate } from './use-structured-agent-session-mutate'
+import type {
+  CaptureStructuredAgentSessionPresentation,
+  StructuredAgentSessionMutate
+} from './use-structured-agent-session-mutate'
 
 export type StructuredAgentSessionQueuedMessagesController = {
   cards: QueuedMessageCard[]
@@ -90,10 +93,11 @@ export function useStructuredAgentSessionQueuedMessages(args: {
   sending?: readonly StructuredAgentSessionPendingSend[]
   composerScopeKey: string | undefined
   mutate: StructuredAgentSessionMutate
+  capturePresentation: CaptureStructuredAgentSessionPresentation
   editTransport: QueuedEditTransport
 }): StructuredAgentSessionQueuedMessagesController {
   const { composerScopeKey, enabled, hasPendingPrompt, mutate, queuedMessages, submissions } = args
-  const { isWorking, queuePause } = args
+  const { capturePresentation, isWorking, queuePause } = args
   const sending = args.sending ?? NO_SENDS
 
   const cards = useMemo(
@@ -162,18 +166,19 @@ export function useStructuredAgentSessionQueuedMessages(args: {
 
   const remove = useCallback(
     async (messageId: string): Promise<void> => {
+      const isCurrent = capturePresentation()
       await run([messageId], 'delete', async () => {
         const result = await mutate<AgentSessionQueuedMessageDeleteResult>(
           'agentSession.queuedMessageDelete',
           'agentSession.queuedMessageDelete',
           { messageId }
         )
-        if (result && !result.deleted && result.disposition === 'dispatched') {
+        if (isCurrent() && result && !result.deleted && result.disposition === 'dispatched') {
           alreadySentNotice()
         }
       })
     },
-    [mutate, run]
+    [capturePresentation, mutate, run]
   )
 
   const editing = useStructuredAgentSessionQueuedEdit({
@@ -222,6 +227,7 @@ export function useStructuredAgentSessionQueuedMessages(args: {
     if (!clearCapable || messageIds.length === 0) {
       return false
     }
+    const isCurrent = capturePresentation()
     // Refused while any of these cards is in flight; each shows busy until the whole Clear settles.
     return run([QUEUE_KEY, ...messageIds], 'clear', async () => {
       const results = await mapSettledWithConcurrency(
@@ -244,10 +250,10 @@ export function useStructuredAgentSessionQueuedMessages(args: {
       const failure = results.find(
         (result) => result.status === 'fulfilled' && result.value.kind === 'not-done'
       )
-      if (failure?.status === 'fulfilled' && failure.value.kind === 'not-done') {
+      if (isCurrent() && failure?.status === 'fulfilled' && failure.value.kind === 'not-done') {
         toast.error(failure.value.notice)
       }
-      if (dispatched) {
+      if (isCurrent() && dispatched) {
         alreadySentNotice()
       }
       return (
@@ -255,7 +261,7 @@ export function useStructuredAgentSessionQueuedMessages(args: {
         results.every((result) => result.status === 'fulfilled' && result.value.kind === 'done')
       )
     })
-  }, [args.editTransport, clearCapable, run])
+  }, [args.editTransport, capturePresentation, clearCapable, run])
 
   return {
     cards,

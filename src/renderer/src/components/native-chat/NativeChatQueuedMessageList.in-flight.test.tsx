@@ -45,6 +45,7 @@ function renderHeldQueue(
 ): void {
   function HeldQueue(): React.JSX.Element {
     const owner = useStructuredAgentSessionQueuedMessages({
+      capturePresentation: () => () => true,
       enabled: true,
       queuedMessages,
       queuePause: { reason: 'stopped' },

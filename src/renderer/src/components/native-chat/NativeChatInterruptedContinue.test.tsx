@@ -388,6 +388,7 @@ it('keeps the draft through Continue admission, refusal, uncertainty and recorde
       sendOptions: () => options
     })
     const transport: NativeChatStructuredComposerTransport = {
+      capturePresentation: () => () => true,
       send: (text, images, request) =>
         sends.send(
           text,
@@ -514,6 +515,7 @@ it('keeps the notice view stable while Continue invokes the latest committed tra
   const first = vi.fn(() => true)
   const latest = vi.fn(() => true)
   const transport: NativeChatStructuredComposerTransport = {
+    capturePresentation: () => () => true,
     send: first,
     dispatchCommand: async () => ({ handled: false, accepted: false, error: null }),
     optionsSurface,

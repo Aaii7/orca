@@ -92,6 +92,7 @@ function transport(
   overrides: Partial<NativeChatStructuredComposerTransport> = {}
 ): NativeChatStructuredComposerTransport {
   return {
+    capturePresentation: () => () => true,
     send: vi.fn(() => true),
     dispatchCommand: vi.fn(async () => PASS_THROUGH),
     optionsSurface: {

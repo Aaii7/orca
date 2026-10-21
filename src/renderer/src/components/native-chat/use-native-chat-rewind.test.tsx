@@ -55,6 +55,7 @@ const item = (
 function input(): Input & { send: ReturnType<typeof vi.fn> } {
   return {
     sessionId: 'session',
+    capturePresentation: () => () => true,
     composerScopeKey: 'pane',
     state: {
       ...EMPTY_STRUCTURED_AGENT_SESSION,
@@ -207,6 +208,30 @@ describe('structured chat rewind', () => {
     view.rerender({ ...props, hostBlockedReason: undefined })
     expect(view.result.current.disabledReason).toBeNull()
   })
+
+  it.each([done, notDone(unknownRefusal)])(
+    'returns captured content after closure for $kind',
+    async (outcome) => {
+      const props = input(),
+        answer = deferred<typeof outcome>()
+      props.send.mockReturnValue(answer.promise)
+      const onMessageReturned = vi.fn(),
+        view = render({ ...props, onMessageReturned })
+      let request!: Promise<void>
+      await act(async () => {
+        request = view.result.current.request('user', async () => true)
+      })
+      view.unmount()
+      writeNativeChatDraftCache('pane', 'new writing')
+      await act(async () => {
+        answer.resolve(outcome)
+        await request
+      })
+      expect(readNativeChatDraftCache('pane')).toBe('new writing\n\ntext of user')
+      expect(onMessageReturned).not.toHaveBeenCalled()
+      expect(toastError).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not execute a confirmation after its pane unmounts', async () => {
     const props = input(),
