@@ -20300,6 +20300,7 @@
     }
   },
   "sourceControl": {
+    "actionSaveFailed": "No se pudo guardar esta acción. Intenta guardarla de nuevo en Ajustes.",
     "discard": {
       "restoreStagedVersionDescription": "Esto restaurará la última versión preparada y descartará la eliminación. No se puede deshacer.",
       "unstagedChangesDescription": "Esto revertirá los cambios no preparados de este archivo. No se puede deshacer."

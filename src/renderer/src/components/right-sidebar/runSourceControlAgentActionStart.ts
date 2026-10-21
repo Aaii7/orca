@@ -126,6 +126,33 @@ export async function runSourceControlAgentActionStart({
     ...launchOptions
   } = projection
 
+  const launchRecipeAlreadySaved = Boolean(
+    saveTarget &&
+    sourceControlActionRecipeMatchesTarget({
+      actionId,
+      target: saveTarget,
+      recipe,
+      settings,
+      repo
+    })
+  )
+  if (saveTarget && onSaveAgentDefault && !launchRecipeAlreadySaved) {
+    // Saving the selected recipe and delivering its prompt are independent user actions.
+    void (async () => {
+      try {
+        await onSaveAgentDefault(saveTarget, actionId, recipe)
+      } catch (error) {
+        console.error('onSaveAgentDefault failed', error)
+        toast.error(
+          translate(
+            'sourceControl.actionSaveFailed',
+            'Could not save this action. Try saving it again in Settings.'
+          )
+        )
+      }
+    })()
+  }
+
   const notifyLaunchAccepted = (): void => {
     if (launchAcceptedNotified) {
       return
@@ -194,23 +221,6 @@ export async function runSourceControlAgentActionStart({
     return false
   }
 
-  const launchRecipeAlreadySaved = Boolean(
-    saveTarget &&
-    sourceControlActionRecipeMatchesTarget({
-      actionId,
-      target: saveTarget,
-      recipe,
-      settings,
-      repo
-    })
-  )
-  if (saveTarget && onSaveAgentDefault && !launchRecipeAlreadySaved) {
-    void Promise.resolve()
-      .then(() => onSaveAgentDefault(saveTarget, actionId, recipe))
-      .catch((error) => {
-        console.error('onSaveAgentDefault failed', error)
-      })
-  }
   onLaunched?.()
   onClose()
   return true

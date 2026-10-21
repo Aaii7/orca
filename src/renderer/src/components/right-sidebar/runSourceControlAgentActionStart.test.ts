@@ -134,23 +134,48 @@ describe('runSourceControlAgentActionStart', () => {
 
   // Why: irreversible host writes (fixing replies, thread resolves) hang off onLaunched, so a
   // launch whose prompt never landed must report the abort and never reach onLaunched.
-  it('aborts an accepted launch when deferred prompt delivery fails', async () => {
+  it('saves before deferred delivery and retains the recipe when delivery fails', async () => {
+    let resolveDelivery = (_value: { delivered: boolean; failureNotified: boolean }): void => {}
+    const promptDeliveryResult = new Promise<{ delivered: boolean; failureNotified: boolean }>(
+      (resolve) => {
+        resolveDelivery = resolve
+      }
+    )
     const onLaunchAccepted = vi.fn()
     const onLaunchAborted = vi.fn()
+    const onSaveAgentDefault = vi.fn()
     mocks.launchAgentInNewTab.mockReturnValue({
       surface: { kind: 'local-terminal', tabId: 'tab-1' },
-      startupPlan: {} as never,
-      pasteDraftAfterLaunch: true,
-      promptDeliveryResult: Promise.resolve({ delivered: false, failureNotified: true })
+      promptDeliveryResult
     })
+    const args = buildArgs({
+      settings: getDefaultSettings('/tmp'),
+      saveTargetValue: 'global',
+      onSaveAgentDefault,
+      onLaunchAccepted,
+      onLaunchAborted
+    })
+    const launchPromise = runSourceControlAgentActionStart(args)
 
-    await expect(
-      runSourceControlAgentActionStart(buildArgs({ onLaunchAccepted, onLaunchAborted }))
-    ).resolves.toBe(false)
-
+    expect(onSaveAgentDefault).toHaveBeenCalledWith(
+      { type: 'global' },
+      'resolveComments',
+      args.recipe
+    )
+    expect(onSaveAgentDefault.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.launchAgentInNewTab.mock.invocationCallOrder[0]
+    )
     expect(onLaunchAccepted).toHaveBeenCalledTimes(1)
+    expect(mocks.onLaunched).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+
+    resolveDelivery({ delivered: false, failureNotified: true })
+    await expect(launchPromise).resolves.toBe(false)
+
+    expect(onSaveAgentDefault).toHaveBeenCalledOnce()
     expect(onLaunchAborted).toHaveBeenCalledTimes(1)
     expect(mocks.onLaunched).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
   it('aborts an accepted launch when promptDeliveryResult rejects', async () => {
@@ -338,7 +363,8 @@ describe('runSourceControlAgentActionStart', () => {
     const originalConsole = console
     const consoleError = vi.fn()
     vi.stubGlobal('console', { ...originalConsole, error: consoleError })
-    mocks.onSaveAgentDefault.mockRejectedValue(new Error('settings not loaded'))
+    const saveError = new Error('settings not loaded')
+    mocks.onSaveAgentDefault.mockRejectedValueOnce(saveError)
     mocks.launchAgentInNewTab.mockReturnValue({
       surface: { kind: 'local-terminal', tabId: 'tab-1' },
       startupPlan: {} as never,
@@ -355,6 +381,12 @@ describe('runSourceControlAgentActionStart', () => {
       expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
       expect(mocks.onClose).toHaveBeenCalledTimes(1)
       expect(onLaunchAborted).not.toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith('onSaveAgentDefault failed', saveError)
+        expect(mocks.toastError).toHaveBeenCalledWith(
+          'Could not save this action. Try saving it again in Settings.'
+        )
+      })
     } finally {
       vi.stubGlobal('console', originalConsole)
     }
