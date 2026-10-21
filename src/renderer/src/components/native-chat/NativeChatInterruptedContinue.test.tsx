@@ -135,6 +135,7 @@ function Harness(props: Props): React.JSX.Element {
     isWorking: props.isWorking ?? false,
     pending: props.pending ?? [],
     transport: props.transport ?? {
+      capturePresentation: () => () => true,
       send: () => true,
       dispatchCommand: async () => ({ handled: false, accepted: false, error: null }),
       optionsSurface,
