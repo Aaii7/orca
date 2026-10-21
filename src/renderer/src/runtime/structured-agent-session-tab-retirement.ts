@@ -8,7 +8,8 @@ import {
   hasStructuredAgentSessionLaunchCancellationTombstone,
   markStructuredAgentSessionLaunchCancelled
 } from '@/lib/structured-agent-session-launch-registry'
-import { toRuntimeExecutionHostId } from '../../../shared/execution-host'
+import { toRuntimeExecutionHostId, type ExecutionHostId } from '../../../shared/execution-host'
+import { forgetUnlistedCreatedChat } from '@/lib/structured-agent-session-unlisted-created-chats'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { discardStructuredAgentSessionChatSends } from '@/lib/structured-agent-session-launch-prompt'
 import { stopStructuredAgentSessionSends } from '@/components/native-chat/structured-agent-session-message-sender'
@@ -17,7 +18,8 @@ import { closeStructuredAgentSession } from './structured-agent-session-close'
 import { withLocalSessionTabCloseOwner } from './local-session-tab-close-owner'
 import {
   executionHostIdForStructuredTarget,
-  structuredAgentSessionFocusOwner
+  structuredAgentSessionFocusOwner,
+  structuredAgentSessionTargetForHost
 } from './structured-agent-session-owner'
 import { clearWebSessionCloseIntent, recordWebSessionCloseIntent } from './web-session-close-intent'
 import type { WebSessionIntentOwner } from './web-session-intent-owner'
@@ -106,6 +108,20 @@ function reacceptHostSessionTabs(
   )
 }
 
+/** Re-reads a worktree whose lists were held back from dropping a chat created here. */
+export function reacceptStructuredSessionHostTabs(
+  executionHostId: ExecutionHostId,
+  worktreeId: string
+): void {
+  const target = structuredAgentSessionTargetForHost(executionHostId)
+  if (target) {
+    const intentOwner = captureWebSessionIntentOwner(
+      structuredAgentSessionFocusOwner(target).environmentId
+    )
+    reacceptHostSessionTabs(target, worktreeId, intentOwner)
+  }
+}
+
 /** Mark cancellation before removing the row so a late host publication cannot resurrect it. */
 export function beginStructuredAgentSessionTabClose(args: {
   target: RuntimeClientTarget
@@ -115,6 +131,7 @@ export function beginStructuredAgentSessionTabClose(args: {
   layoutOwner: StructuredLaunchSlotOwner
   onError?: (error: unknown) => void
 }): void {
+  forgetUnlistedCreatedChat(args.worktreeId, args.sessionId)
   if (args.provisional) {
     markStructuredAgentSessionLaunchCancelled(
       args.worktreeId,
