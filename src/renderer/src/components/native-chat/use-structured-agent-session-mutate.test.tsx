@@ -154,40 +154,6 @@ describe('a write pressed again', () => {
   })
 })
 
-describe('a goal set while the agent rests', () => {
-  it.each([
-    'agentSession.threadGoal',
-    'agentSession.rewind',
-    'agentSession.conversationCommand',
-    'agentSession.setOption'
-  ])('keeps %s and a concurrent goal reply across startup', async (method) => {
-    const stateRef: { current: { fence: number | null } } = { current: { fence: 3 } }
-    mocks.call.mockImplementation(async () => {
-      await Promise.resolve()
-      stateRef.current.fence = 4
-      return { ok: true, value: { change: 'set' } }
-    })
-    const { current } = renderHook(() =>
-      useStructuredAgentSessionMutate({
-        sessionId: 'session-1',
-        target: { kind: 'local' },
-        stateRef
-      })
-    ).result
-
-    let answer: unknown
-    await act(async () => {
-      const original = current.mutate(method, method, {})
-      await current.mutate('agentSession.threadGoal', 'agentSession.threadGoal', {
-        change: { kind: 'clear' }
-      })
-      answer = await original
-    })
-
-    expect(answer).toEqual({ change: 'set' })
-  })
-})
-
 describe('a conversation command typed again', () => {
   it('goes out as a new command, which the host resumes or runs', async () => {
     const ids: string[] = []

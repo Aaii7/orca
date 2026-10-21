@@ -236,7 +236,13 @@ describe('a conversation command whose reply lands after the fence moved', () =>
     })
   })
 
-  it('settles each command independently when a newer one overlaps startup', async () => {
+  it.each([
+    ['agentSession.threadGoal', 'agentSession.threadGoal'],
+    ['agentSession.rewind', 'agentSession.threadGoal'],
+    ['agentSession.conversationCommand', 'agentSession.threadGoal'],
+    ['agentSession.setOption', 'agentSession.threadGoal'],
+    ['agentSession.conversationCommand', 'agentSession.conversationCommand']
+  ])('settles %s independently when %s overlaps startup', async (earlier, later) => {
     const answers: ((reply: unknown) => void)[] = []
     mocks.call.mockImplementation(
       () =>
@@ -252,12 +258,9 @@ describe('a conversation command whose reply lands after the fence moved', () =>
         stateRef
       })
     )
-    const command = (): Promise<unknown> =>
-      result.current.write('agentSession.conversationCommand', 'agentSession.conversationCommand', {
-        command: 'clear'
-      })
-    const older = command()
-    const newer = command()
+    const command = (name: string): Promise<unknown> => result.current.write(name, name, {})
+    const older = command(earlier)
+    const newer = command(later)
     stateRef.current.fence = 5
     await act(async () => {
       answers[0](commandReply('clear', NOT_SIGNED_IN))
