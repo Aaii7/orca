@@ -152,6 +152,7 @@ export function useNativeChatRewind(input: RewindInput) {
     sessionId: string
     epoch: string
     sequence?: number
+    isCurrent: () => boolean
   } | null>(null)
   const awaitingReset =
     awaiting?.sessionId === input.sessionId &&
@@ -161,9 +162,7 @@ export function useNativeChatRewind(input: RewindInput) {
   const hiddenWhileAwaiting = useRef(false)
   const visible = input.isVisible !== false
   useLayoutEffect(() => {
-    if (!visible) {
-      hiddenWhileAwaiting.current = true
-    }
+    hiddenWhileAwaiting.current ||= !visible
   }, [visible])
   useEffect(() => {
     if (!awaitingReset) {
@@ -172,12 +171,12 @@ export function useNativeChatRewind(input: RewindInput) {
     hiddenWhileAwaiting.current = latest.current.isVisible === false
     const timer = setTimeout(() => {
       setAwaiting(null)
-      if (!hiddenWhileAwaiting.current) {
+      if (!hiddenWhileAwaiting.current && awaiting?.isCurrent()) {
         toast.error(nativeChatRewindTimeoutCopy())
       }
     }, NATIVE_CHAT_REWIND_RESET_TIMEOUT_MS)
     return () => clearTimeout(timer)
-  }, [awaitingReset])
+  }, [awaiting, awaitingReset])
   const pending = sending || awaitingReset
   const disabledReason = pending ? nativeChatRewindPendingCopy() : blockedReason(input)
   const blockedRef = useRef(false)
@@ -259,6 +258,7 @@ export function useNativeChatRewind(input: RewindInput) {
             : {
                 sessionId: captured.sessionId,
                 epoch: expectedEpoch,
+                isCurrent,
                 ...(outcome.value.sequence !== undefined
                   ? { sequence: outcome.value.sequence }
                   : {})

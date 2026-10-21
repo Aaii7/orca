@@ -372,15 +372,23 @@ describe('structured chat rewind', () => {
     }
   })
 
-  it.each(['hidden throughout', 'hidden part way'] as const)(
-    'lets go silently when the pane was %s, since a hidden pane reads nothing',
+  it.each(['hidden throughout', 'hidden part way', 'presentation replaced'] as const)(
+    'lets go silently when the pane was %s',
     async (mode) => {
       vi.useFakeTimers()
       try {
-        const props: Input = { ...input(), isVisible: mode !== 'hidden throughout' }
+        let current = true
+        const props: Input = {
+          ...input(),
+          isVisible: mode !== 'hidden throughout',
+          capturePresentation: () => () => current
+        }
         const view = render(props)
         await act(() => view.result.current.request('user', async () => true))
         expect(view.result.current.blockedRef.current).toBe(true)
+        if (mode === 'presentation replaced') {
+          current = false
+        }
         if (mode === 'hidden part way') {
           await act(() => vi.advanceTimersByTimeAsync(1_000))
           view.rerender({ ...props, isVisible: false })
