@@ -11,6 +11,7 @@ import type {
 } from '../../../../shared/source-control-ai-types'
 import {
   SOURCE_CONTROL_ACTION_IDS,
+  setSourceControlActionAgentDefault,
   type SourceControlActionId
 } from '../../../../shared/source-control-ai-actions'
 import {
@@ -20,7 +21,6 @@ import {
 } from './repository-source-control-ai-draft'
 import { withRepoAiActionAgent } from './repository-source-control-ai-action-agent-draft'
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
-import { setSourceControlActionAgentDefault } from '../../../../shared/source-control-ai-actions'
 import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
 import { sourceControlActionRecipeMatchesTarget } from '../right-sidebar/source-control-action-recipe-match'
 import { RepositorySourceControlAiActionRows } from './RepositorySourceControlAiActionRows'
