@@ -9,7 +9,7 @@ type TabMovePaneColumnState = Pick<
   'unifiedTabsByWorktree' | 'groupsByWorktree'
 >
 
-export function canMoveTabToNewPaneColumnFromState(
+function canMoveTabToNewPaneColumnFromState(
   state: TabMovePaneColumnState,
   unifiedTabId: string,
   groupId: string

@@ -16703,10 +16703,10 @@
                 "addQuickCommand": "ajouter une commande rapide",
                 "newQuickCommand": "nouvelle commande rapide",
                 "splitChatRight": "diviser le chat à droite",
-                "moveChatRight": "déplacer le chat vers la droite",
+                "newChatRight": "nouveau chat à droite",
                 "chatPaneRight": "volet de discussion à droite",
                 "splitChatDown": "diviser la discussion",
-                "moveChatDown": "déplacer le chat vers le bas",
+                "newChatBelow": "nouveau chat en bas",
                 "chatPaneBelow": "volet de discussion ci-dessous"
               },
               "splitChatRight": "Diviser le chat à droite",

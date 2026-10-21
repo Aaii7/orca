@@ -16595,10 +16595,10 @@
                 "addQuickCommand": "クイックコマンドを追加",
                 "newQuickCommand": "新規クイックコマンド",
                 "splitChatRight": "チャットを右に分割",
-                "moveChatRight": "チャットを右に移動",
+                "newChatRight": "右に新しいチャット",
                 "chatPaneRight": "チャットペイン右",
                 "splitChatDown": "チャットを分割する",
-                "moveChatDown": "チャットを下に移動",
+                "newChatBelow": "下に新しいチャット",
                 "chatPaneBelow": "下のチャットペイン"
               },
               "splitChatRight": "右の分割チャット",
