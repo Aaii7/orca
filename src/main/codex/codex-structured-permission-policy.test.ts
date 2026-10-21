@@ -6,7 +6,7 @@ const FULL_ACCESS = {
   sandbox: 'danger-full-access',
   approvalsReviewer: 'user'
 }
-const ASK = { approvalPolicy: 'on-request', sandbox: 'workspace-write', approvalsReviewer: 'user' }
+const ASK = { approvalPolicy: 'untrusted', sandbox: 'read-only', approvalsReviewer: 'user' }
 
 describe('codexStructuredPermissionPolicy', () => {
   it('maps Full access to no prompts and no sandbox', () => {
@@ -19,9 +19,10 @@ describe('codexStructuredPermissionPolicy', () => {
     expect(codexStructuredPermissionPolicy('ask')).toEqual(ASK)
   })
 
-  it('routes Approve for me to Codex auto-review under the Ask sandbox', () => {
+  it('keeps Approve for me in the configured workspace sandbox', () => {
     expect(codexStructuredPermissionPolicy('auto')).toEqual({
-      ...ASK,
+      approvalPolicy: 'on-request',
+      sandbox: 'workspace-write',
       approvalsReviewer: 'auto_review'
     })
   })
@@ -35,7 +36,6 @@ describe('codexStructuredPermissionPolicy', () => {
     }
   })
 
-  // Codex has no edits-only mode, so a stray one is the safer neighbour rather than more access.
   it('asks for a mode Codex does not have', () => {
     expect(codexStructuredPermissionPolicy('accept-edits')).toEqual(ASK)
   })

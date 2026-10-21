@@ -1,5 +1,9 @@
 import * as codexRewind from './codex-structured-rewind'
 import { waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
+import {
+  prepareCodexTurnPermission,
+  codexPermissionRequiresAcquisition
+} from './codex-structured-turn-permission'
 import type { AgentSessionBackgroundTaskState } from '../../shared/agent-session-wire'
 import { isCodexAppServerRequestError } from './codex-app-server-connection'
 import type {
@@ -91,6 +95,19 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
     this.sessions.get(sessionId)?.skillReport?.read()
 
   readonly atRestCommands: CodexStructuredSessionAdapterDeps['atRestCommands']
+
+  preparePermissionMode: NonNullable<StructuredAgentSessionAdapter['preparePermissionMode']> =
+    async (sessionId, mode) => {
+      const session = this.sessions.get(sessionId)
+      if (session && !session.ended) await prepareCodexTurnPermission(session, mode)
+    }
+
+  permissionModeRequiresAcquisition: NonNullable<
+    StructuredAgentSessionAdapter['permissionModeRequiresAcquisition']
+  > = (sessionId, mode) => {
+    const session = this.sessions.get(sessionId)
+    return session ? codexPermissionRequiresAcquisition(session, mode) : undefined
+  }
 
   acquire = (input: StructuredAgentSessionAcquireInput): Promise<AgentSessionAcquisition> =>
     acquireCodexStructuredSession({
@@ -245,7 +262,19 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
         input.signal
       )
       input.signal?.throwIfAborted()
-      return await dispatchCodexTurn(session, { ...input, turnOptions }, this.deps.requestTimeoutMs)
+      return await dispatchCodexTurn(
+        session,
+        {
+          ...input,
+          turnOptions,
+          isCurrent: () =>
+            this.sessions.get(input.sessionId) === session &&
+            !session.ended &&
+            session.fence === input.fence &&
+            input.isCurrent?.() !== false
+        },
+        this.deps.requestTimeoutMs
+      )
     } finally {
       session.dispatchPending = false
     }

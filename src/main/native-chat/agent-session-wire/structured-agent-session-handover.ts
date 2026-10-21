@@ -17,7 +17,10 @@ import type {
 } from '../../../shared/agent-session-journal-types'
 import { DISPATCH_DOUBT_PERSISTENCE_FAILED } from '../agent-session-journal/journal-dispatch-doubt-reasons'
 import { contextStructuredAgentSessionCurrentWork } from './structured-agent-session-current-work'
-import type { AgentSessionDispatchOutcome } from './structured-agent-session-adapter'
+import type {
+  AgentSessionDispatchOutcome,
+  StructuredAgentSessionAdapter
+} from './structured-agent-session-adapter'
 import { agentJournalSubmissionKey } from '../../../shared/agent-session-journal-item-key'
 import {
   handOverStructuredAgentSessionCommand,
@@ -33,6 +36,9 @@ import {
 } from './structured-agent-session-handing-over'
 
 export type AgentSessionHandoverContext = StructuredAgentSessionCommandHandoverContext & {
+  readPermissionMode?: Parameters<
+    StructuredAgentSessionAdapter['dispatch']
+  >[0]['readPermissionMode']
   acquireAborts?: Pick<StructuredAgentSessionAcquireAborts, 'begin'>
   deliveryOrder?: StructuredAgentSessionDeliveryOrder
   workChanged?: () => void
@@ -127,6 +133,7 @@ export async function beginSubmissionHandover(
                 carried ? withStoppedHistory(body, carried.messages) : body,
                 requestedAt,
                 submission.options,
+                stillCurrent,
                 attempt?.signal
               )
             : null
@@ -202,6 +209,7 @@ async function dispatchSafely(
   body: AgentJournalMessageItem,
   requestedAt: number,
   executionOptions: AgentSessionExecutionOptions | undefined,
+  isCurrent: () => boolean,
   signal?: AbortSignal
 ): Promise<AgentSessionDispatchOutcome> {
   try {
@@ -211,6 +219,8 @@ async function dispatchSafely(
       body,
       ...(executionOptions ? { executionOptions } : {}),
       ...(signal ? { signal } : {}),
+      ...(ctx.readPermissionMode ? { readPermissionMode: ctx.readPermissionMode } : {}),
+      isCurrent,
       fence: ctx.fence,
       requestedAt
     })

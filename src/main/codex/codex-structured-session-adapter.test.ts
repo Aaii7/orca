@@ -142,8 +142,8 @@ describe('CodexStructuredSessionAdapter.acquire', () => {
       method: 'thread/start',
       params: {
         cwd: '/work/repo',
-        approvalPolicy: 'on-request',
-        sandbox: 'workspace-write',
+        approvalPolicy: 'untrusted',
+        sandbox: 'read-only',
         approvalsReviewer: 'user',
         // A user's `inherit = "core"` policy would strip these from every command the chat runs.
         config: {

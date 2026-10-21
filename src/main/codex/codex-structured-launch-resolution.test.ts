@@ -169,8 +169,8 @@ describe('codex structured launch resolution', () => {
       resumeThreadId: null,
       // Every launch carries a posture; none is left for config.toml to decide. No mode asks.
       permissionPolicy: {
-        approvalPolicy: 'on-request',
-        sandbox: 'workspace-write',
+        approvalPolicy: 'untrusted',
+        sandbox: 'read-only',
         approvalsReviewer: 'user'
       },
       env: { CODEX_HOME: '/home/work/.codex' },
@@ -258,10 +258,7 @@ describe('codex structured launch resolution', () => {
 
   // app-server owns the permission posture on the thread RPC, not process flags.
   it.each([
-    [
-      'ask',
-      { approvalPolicy: 'on-request', sandbox: 'workspace-write', approvalsReviewer: 'user' }
-    ],
+    ['ask', { approvalPolicy: 'untrusted', sandbox: 'read-only', approvalsReviewer: 'user' }],
     [
       'auto',
       { approvalPolicy: 'on-request', sandbox: 'workspace-write', approvalsReviewer: 'auto_review' }
@@ -287,7 +284,7 @@ describe('codex structured launch resolution', () => {
       '--dangerously-bypass-approvals-and-sandbox'
     ])({ identity: IDENTITY, spawnToken: TEST_SPAWN_TOKEN, permissionMode: 'ask' })
 
-    expect(launch.permissionPolicy).toMatchObject({ approvalPolicy: 'on-request' })
+    expect(launch.permissionPolicy).toMatchObject({ approvalPolicy: 'untrusted' })
   })
 
   // A thread opened on the configured default and then given a turn on the saved model reads to

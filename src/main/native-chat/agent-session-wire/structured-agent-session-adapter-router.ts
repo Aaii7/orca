@@ -1,4 +1,5 @@
 import type { StructuredAgentSessionAtRestCommands } from './structured-agent-session-at-rest-commands'
+import type { AgentChatPermissionMode } from '../../../shared/agent-chat-permission-mode'
 import type { AgentSessionJournalIdentity } from '../../../shared/agent-session-journal-types'
 import type {
   AgentSessionAccountHome,
@@ -56,6 +57,15 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
 
   dispatch: StructuredAgentSessionAdapter['dispatch'] = (input) =>
     this.owner(input.sessionId).dispatch(input)
+
+  preparePermissionMode = async (sessionId: string, mode: AgentChatPermissionMode): Promise<void> =>
+    this.liveOwnerOrNull(sessionId)?.preparePermissionMode?.(sessionId, mode)
+
+  permissionModeRequiresAcquisition = (
+    sessionId: string,
+    mode: AgentChatPermissionMode
+  ): boolean | undefined =>
+    this.liveOwnerOrNull(sessionId)?.permissionModeRequiresAcquisition?.(sessionId, mode)
 
   /** The owner's declared rewind, narrowed by its adapter for this session; never widened. */
   rewindSupport: NonNullable<StructuredAgentSessionAdapter['rewindSupport']> = (

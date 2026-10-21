@@ -1,5 +1,4 @@
-// A child the chat outgrew (signed out, or launched with another permission mode) is replaced before
-// the next send: agents read their login and permission mode only when they start.
+// Replace an outgrown child only when its provider needs acquisition to apply the current choice.
 
 import { readWholeAgentSessionFailureFact } from '../../../shared/agent-session-failure'
 import { isRootAgentJournalItem } from '../../../shared/agent-session-journal-producer'
@@ -73,13 +72,17 @@ function owesWakeUp(
 /** Loop-free: a start launches with the same `current` this compares against. */
 async function launchedWithOtherPermissionMode(
   child: OutgrownChildReading['child'],
-  current: (() => Promise<AgentChatPermissionMode | null>) | undefined
+  current: (() => Promise<AgentChatPermissionMode | null>) | undefined,
+  requiresAcquisition: ((mode: AgentChatPermissionMode) => boolean) | undefined
 ): Promise<boolean> {
   if (!child || child.phase === 'starting' || child.close || !child.permissionMode || !current) {
     return false
   }
   const mode = await current()
-  return mode !== null && mode !== child.permissionMode
+  return (
+    mode !== null &&
+    (requiresAcquisition ? requiresAcquisition(mode) : mode !== child.permissionMode)
+  )
 }
 
 /** For a caller inside the session's serialize, before it hands the next send to the child. Work
@@ -95,6 +98,7 @@ export async function retireOutgrownStructuredAgentSessionChild(
     }
     /** The mode a start of the chat would launch with now. */
     launchPermission?: () => Promise<AgentChatPermissionMode | null>
+    permissionRequiresAcquisition?: (mode: AgentChatPermissionMode) => boolean
     stopAgent: (sessionId: string) => Promise<void>
     logger: StructuredAgentSessionLogger
   }
@@ -103,7 +107,11 @@ export async function retireOutgrownStructuredAgentSessionChild(
     !session ||
     !(
       structuredAgentSessionChildReportedSignedOut(session) ||
-      (await launchedWithOtherPermissionMode(session.child, deps.launchPermission))
+      (await launchedWithOtherPermissionMode(
+        session.child,
+        deps.launchPermission,
+        deps.permissionRequiresAcquisition
+      ))
     ) ||
     structuredAgentSessionChildHasOpenWork(deps.work) ||
     owesWakeUp(session.journal, deps.work.childWork())

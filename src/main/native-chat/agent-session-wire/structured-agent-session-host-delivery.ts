@@ -88,6 +88,12 @@ export function createStructuredAgentSessionConversationDelivery(input: {
     serialize: input.serialize,
     trackStart: input.trackStart,
     startProviderChild: input.startProviderChild,
+    preparePermissionMode: async (sessionId) => {
+      const record = deps.store.getRecord(sessionId)
+      if (!record) return
+      const mode = await structuredAgentSessionLaunchPermission(deps, record)
+      if (mode) await deps.adapter.preparePermissionMode?.(sessionId, mode)
+    },
     retireOutgrownChild: async (sessionId) => {
       // A send waiting on a person's Stop is not handed over yet; the step after the Stop decides.
       const session = input.clientDelivery.readStopping(sessionId)
@@ -109,6 +115,9 @@ export function createStructuredAgentSessionConversationDelivery(input: {
           const record = deps.store.getRecord(sessionId)
           return record ? structuredAgentSessionLaunchPermission(deps, record) : null
         },
+        permissionRequiresAcquisition: (mode) =>
+          deps.adapter.permissionModeRequiresAcquisition?.(sessionId, mode) ??
+          mode !== session?.child?.permissionMode,
         stopAgent: input.stopOutgrownAgent,
         logger: deps.logger
       })
@@ -134,6 +143,10 @@ export function createStructuredAgentSessionConversationDelivery(input: {
       ),
     logger: deps.logger,
     record: (sessionId) => deps.store.getRecord(sessionId),
+    readPermissionMode: async (sessionId) => {
+      const record = deps.store.getRecord(sessionId)
+      return record ? structuredAgentSessionLaunchPermission(deps, record) : null
+    },
     currentWork: (sessionId) =>
       hostStructuredAgentSessionCurrentWork({ store: deps.store, sessions }, sessionId),
     readChildWork: input.clientDelivery.readChildWork,

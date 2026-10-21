@@ -15,6 +15,29 @@ function connectionFor(
 }
 
 describe('openCodexThread', () => {
+  it('retains the compiled Auto sandbox on start and resume', async () => {
+    const sandbox = {
+      type: 'workspaceWrite',
+      writableRoots: ['/workspace', '/extra-root'],
+      networkAccess: true,
+      excludeTmpdirEnvVar: true,
+      excludeSlashTmp: true
+    }
+    const connection = connectionFor(vi.fn(async () => ({ thread: { id: 'thread' }, sandbox })))
+    for (const resumeThreadId of [null, 'thread']) {
+      const opened = await openCodexThread(
+        connection,
+        {
+          cwd: '/workspace',
+          resumeThreadId,
+          permissionPolicy: codexStructuredPermissionPolicy('auto')
+        },
+        2_000
+      )
+      expect(opened.sandbox).toEqual(sandbox)
+    }
+  })
+
   it('applies the resolved permission policy when starting and resuming a thread', async () => {
     const request = vi.fn(async (method: string) => ({
       thread: { id: method === 'thread/start' ? 'thread-created' : 'thread-existing' }
@@ -76,8 +99,8 @@ describe('openCodexThread', () => {
 
     const params = request.mock.calls[0]?.[1] ?? {}
     expect(params).toMatchObject({
-      approvalPolicy: 'on-request',
-      sandbox: 'workspace-write',
+      approvalPolicy: 'untrusted',
+      sandbox: 'read-only',
       approvalsReviewer: 'user'
     })
     // Absence is the bug, so assert the keys are carried, not merely that they are not Full access.

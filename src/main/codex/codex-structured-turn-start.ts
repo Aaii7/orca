@@ -1,4 +1,6 @@
 import { pickedSkillsInText } from '../../shared/structured-agent-session-send-mutation'
+import type { AgentChatPermissionMode } from '../../shared/agent-chat-permission-mode'
+import { prepareCodexTurnPermission, codexTurnPermission } from './codex-structured-turn-permission'
 import type { CodexSkillReport } from './codex-structured-skill-report'
 import type { AgentSessionAccountKind } from '../../shared/agent-session-availability'
 import { agentSessionFailureFact, providerDiagnosticOf } from '../../shared/agent-session-failure'
@@ -38,18 +40,27 @@ import {
 // the turn to open and steers it.
 
 /** Keys Codex accepts as per-turn overrides. An unlisted key would otherwise
- *  become an arbitrary client-controlled `turn/start` parameter. Permission posture is the chat's
- *  permission mode, stated when the thread opens: a saved reviewer here would override it. */
+ *  become an arbitrary client-controlled `turn/start` parameter. Permissions come from the
+ *  executing host's current choice, independently of a message's saved model options. */
 const CODEX_TURN_OPTION_KEYS = new Set(['model', 'effort', 'personality', 'serviceTier'])
 
 export function isCodexTurnOptionKey(key: string): boolean {
   return CODEX_TURN_OPTION_KEYS.has(key)
 }
 
-function checkDispatchAuthority(host: CodexTurnHost, id: string, signal?: AbortSignal): void {
+function checkDispatchAuthority(
+  host: CodexTurnHost,
+  id: string,
+  signal?: AbortSignal,
+  isCurrent?: () => boolean
+): void {
   if (signal?.aborted) {
     host.dispatchEchoes.disarm(id)
     signal.throwIfAborted()
+  }
+  if (isCurrent?.() === false) {
+    host.dispatchEchoes.disarm(id)
+    throw new Error('codex dispatch no longer owns its provider child')
   }
 }
 
@@ -60,6 +71,7 @@ export type CodexTurnHost = {
   skillReport?: Pick<CodexSkillReport, 'hasSkillPath'>
   connection: Pick<CodexAppServerConnection, 'request'>
   threadId: string
+  permissions?: CodexSession['permissions']
   options: Map<string, string>
   appliedTurnOptions?: Readonly<Record<string, string>>
   reportedOptions?: CodexSession['reportedOptions']
@@ -111,11 +123,12 @@ async function steerCodexTurn(
     body: AgentJournalMessageItem
     timeoutMs?: number
     signal?: AbortSignal
+    isCurrent?: () => boolean
     onReply?: () => void
   }
 ): Promise<{ turnId: string; via: 'steer' } | null> {
   try {
-    checkDispatchAuthority(host, input.clientMessageId, input.signal)
+    checkDispatchAuthority(host, input.clientMessageId, input.signal, input.isCurrent)
     const answer = await host.connection.request(
       'turn/steer',
       {
@@ -149,6 +162,8 @@ export async function startCodexTurn(
     timeoutMs?: number
     turnOptions?: Readonly<Record<string, string>>
     signal?: AbortSignal
+    isCurrent?: () => boolean
+    readPermissionMode?: () => Promise<AgentChatPermissionMode | null>
     /** Stamped as each reply is read (`CodexDispatchEchoes.tick`); the last is this send's. */
     onReply?: () => void
   }
@@ -178,7 +193,23 @@ export async function startCodexTurn(
   if (steered) {
     return steered
   }
-  checkDispatchAuthority(host, input.clientMessageId, input.signal)
+  const readMode = async (): Promise<AgentChatPermissionMode> => {
+    const mode = input.readPermissionMode
+      ? await input.readPermissionMode()
+      : (host.permissions?.acquiredMode ?? 'ask')
+    if (mode === null) {
+      host.dispatchEchoes.disarm(input.clientMessageId)
+      throw new Error('codex dispatch has no host permission choice')
+    }
+    return mode
+  }
+  let mode = await readMode()
+  if (mode === 'auto' && host.permissions?.preparedMode !== mode) {
+    await prepareCodexTurnPermission(host, mode)
+    mode = await readMode()
+  }
+  checkDispatchAuthority(host, input.clientMessageId, input.signal, input.isCurrent)
+  const permission = codexTurnPermission(host, mode)
   const previousApplied = host.appliedTurnOptions
   const previousOptions = input.turnOptions ? new Map(host.options) : null
   if (input.turnOptions) {
@@ -198,6 +229,7 @@ export async function startCodexTurn(
         threadId: host.threadId,
         clientUserMessageId: input.clientMessageId,
         input: turnInputFor(host, input.body),
+        ...permission,
         ...requested
       },
       { timeoutMs: input.timeoutMs, onReply: input.onReply }
@@ -233,6 +265,8 @@ export async function dispatchCodexTurn(
     requestedAt?: number
     turnOptions?: Readonly<Record<string, string>>
     signal?: AbortSignal
+    isCurrent?: () => boolean
+    readPermissionMode?: () => Promise<AgentChatPermissionMode | null>
   },
   timeoutMs: number | undefined
 ): Promise<AgentSessionDispatchOutcome> {

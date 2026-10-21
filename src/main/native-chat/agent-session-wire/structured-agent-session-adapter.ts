@@ -1,4 +1,5 @@
 import type { AiVaultConversationCopy } from '../../../shared/ai-vault-resume-preparation'
+import type { AgentChatPermissionMode } from '../../../shared/agent-chat-permission-mode'
 import type { AgentSessionAccountKind } from '../../../shared/agent-session-availability'
 import type {
   AgentSessionRewindFork,
@@ -273,6 +274,12 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
   /** Whether this adapter owns a child, failed acquisition, or unacknowledged acquisition receipt. */
   hasOwnedAcquisition?(sessionId: string): boolean
   stoppedAcquisition?(sessionId: string): StructuredAgentSessionAcquisitionReceipt | undefined
+  /** Provider-only preparation; called outside the host serialize before deciding replacement. */
+  preparePermissionMode?(sessionId: string, mode: AgentChatPermissionMode): Promise<void>
+  permissionModeRequiresAcquisition?(
+    sessionId: string,
+    mode: AgentChatPermissionMode
+  ): boolean | undefined
   dispatch(input: {
     sessionId: string
     clientMessageId: string
@@ -287,6 +294,10 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
     requestedAt?: number
     /** Revalidate after preparation, immediately before writing to the provider. */
     beforeDispatch?: () => Promise<void>
+    /** Whether the host still owns this exact child after asynchronous preparation. */
+    isCurrent?: () => boolean
+    /** The execution host's current choice, read after provider preparation. */
+    readPermissionMode?: () => Promise<AgentChatPermissionMode | null>
   }): Promise<AgentSessionDispatchOutcome>
   /** How this session narrows its agent's declared rewind; `agent` answers for one with no child
    *  running. The router applies the declaration first, so an adapter's answer never widens it. */

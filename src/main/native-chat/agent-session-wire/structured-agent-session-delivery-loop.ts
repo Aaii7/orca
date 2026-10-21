@@ -63,6 +63,12 @@ export type StructuredAgentSessionDeliveryLoopDeps = {
   startProviderChild: (sessionId: string, startedFor: string) => StructuredAgentSessionStartClaim
   /** Stops a child the chat outgrew (a new login or permission mode); inside `serialize`. */
   retireOutgrownChild: (sessionId: string) => Promise<void>
+  preparePermissionMode?: (sessionId: string) => Promise<void>
+  readPermissionMode?: (
+    sessionId: string
+  ) => ReturnType<
+    NonNullable<Parameters<StructuredAgentSessionAdapter['dispatch']>[0]['readPermissionMode']>
+  >
   readiness: (
     sessionId: string,
     child: StructuredAgentSessionProviderChildIdentity
@@ -147,6 +153,7 @@ export class StructuredAgentSessionDeliveryLoop {
   private async run(sessionId: string): Promise<void> {
     try {
       for (;;) {
+        await this.deps.preparePermissionMode?.(sessionId)
         const prepared = await this.deps.trackStart(
           this.deps.serialize(sessionId, () => this.prepare(sessionId))
         )
@@ -327,6 +334,9 @@ export class StructuredAgentSessionDeliveryLoop {
         agents: this.deps.agents,
         failureTextContext: this.deps.failureTextContext(sessionId),
         record: () => this.deps.record(sessionId),
+        readPermissionMode: this.deps.readPermissionMode
+          ? () => this.deps.readPermissionMode?.(sessionId) ?? Promise.resolve(null)
+          : undefined,
         currentWork: () => this.deps.currentWork(sessionId),
         childWork: () => this.deps.readChildWork(sessionId),
         childWorkOpen: () => this.deps.childWorkOpen(sessionId),

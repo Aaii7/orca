@@ -12,6 +12,7 @@ import {
 } from './codex-app-server-connection'
 import type { CodexStructuredPermissionPolicy } from './codex-structured-permission-policy'
 import { readCodexThreadId } from './codex-structured-thread-facts'
+import { readCodexSandboxPolicy, type CodexSandboxPolicy } from './codex-structured-sandbox-policy'
 
 export type CodexOpenedThread = {
   threadId: string
@@ -23,6 +24,7 @@ export type CodexOpenedThread = {
   effort?: string
   /** Present, including null, only when this app-server reports the effective tier. */
   serviceTier?: string | null
+  sandbox?: CodexSandboxPolicy
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -137,6 +139,7 @@ export async function openCodexThread(
   const effort = nonEmptyString(result.reasoningEffort)
   const serviceTierKnown = Object.hasOwn(result, 'serviceTier')
   const serviceTier = nonEmptyString(result.serviceTier)
+  const sandbox = readCodexSandboxPolicy(result.sandbox)
   return {
     threadId,
     ...(supersededThreadId === undefined ? {} : { supersededThreadId }),
@@ -146,6 +149,7 @@ export async function openCodexThread(
       : {}),
     ...(model ? { model } : {}),
     ...(effort ? { effort } : {}),
+    ...(sandbox ? { sandbox } : {}),
     ...(serviceTierKnown ? { serviceTier } : {})
   }
 }
