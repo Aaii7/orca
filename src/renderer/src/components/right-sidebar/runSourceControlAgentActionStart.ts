@@ -6,9 +6,10 @@ import type { Repo } from '../../../../shared/repo-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { AgentLaunchChoice } from '@/lib/agent-menu-selection'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
-import type {
-  SourceControlActionRecipe,
-  SourceControlLaunchActionId
+import {
+  normalizeSourceControlActionRecipe,
+  type SourceControlActionRecipe,
+  type SourceControlLaunchActionId
 } from '../../../../shared/source-control-ai-actions'
 import {
   saveSourceControlActionRecipe,
@@ -104,9 +105,11 @@ export async function runSourceControlAgentActionStart({
       recipe
     })
     recipeToSave =
-      ('sourceControlAi' in saved
-        ? saved.sourceControlAi.actions?.[actionId]
-        : saved.update.sourceControlAi?.actionOverrides?.[actionId]) ?? recipe
+      normalizeSourceControlActionRecipe(
+        'sourceControlAi' in saved
+          ? saved.sourceControlAi.actions?.[actionId]
+          : saved.update.sourceControlAi?.actionOverrides?.[actionId]
+      ) ?? recipe
     launchRecipe = resolveSourceControlActionRecipe({
       settings:
         'sourceControlAi' in saved
