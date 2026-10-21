@@ -4,9 +4,9 @@
 // from an earlier one. The host answers a second Stop of a named turn or task quietly; against an
 // older host that does not, this client joins one still on its way instead of stopping twice.
 // Every result is discarded unless the runtime fence it was issued against is still the current
-// one, except the reply to the conversation command or rewind a pane still waits on, since either
-// may move the fence itself. A write that did not happen is reported once, in the person's words, by
-// the caller that knows where to say it; nothing latches.
+// one, except the reply to the conversation command, rewind or goal change a pane still waits on,
+// since each may start the agent and so move the fence itself. A write that did not happen is
+// reported once, in the person's words, by the caller that knows where to say it; nothing latches.
 
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
@@ -42,6 +42,13 @@ export type StructuredAgentSessionWrite = <T>(
 
 /** A write whose failure is shown as a toast; the control that sent it is the way to try again. */
 export type StructuredAgentSessionMutate = <T>(...args: WriteArgs) => Promise<T | null>
+
+/** Writes the host may start the agent for before answering, moving the fence under the reply. */
+const MAY_START_THE_AGENT = new Set([
+  'agentSession.conversationCommand',
+  'agentSession.rewind',
+  'agentSession.threadGoal'
+])
 
 /** A Stop naming its turn or task; one naming neither acts on whatever runs when the host reaches
  *  it, so a second press is a Stop of its own. */
@@ -89,7 +96,7 @@ export function useStructuredAgentSessionMutate(args: {
     new Map<string, Promise<StructuredAgentSessionWriteOutcome<unknown>>>()
   )
   const enabledRef = useRef(enabled)
-  // The conversation command or rewind this pane still waits on; only its reply may outlive a fence
+  // The write that may start the agent this pane still waits on; only its reply may outlive a fence
   // move. A newer one replaces it, and disabling the pane forgets it.
   const commandInFlight = useRef<object | null>(null)
   useEffect(() => {
@@ -111,16 +118,13 @@ export function useStructuredAgentSessionMutate(args: {
       }
       const targetFence = pressedFence
       const request = {}
-      if (
-        fingerprintMethod === 'agentSession.conversationCommand' ||
-        fingerprintMethod === 'agentSession.rewind'
-      ) {
+      if (MAY_START_THE_AGENT.has(fingerprintMethod)) {
         commandInFlight.current = request
       }
       // Whether this call's answer is still for what the pane shows. Another fence's result is about
-      // a runtime the pane replaced; a conversation command may itself start or stop the agent,
-      // moving the fence under its own reply, so that reply is kept while this pane still waits on
-      // it. Called once, when the call settles.
+      // a runtime the pane replaced; a write that may itself start or stop the agent moves the fence
+      // under its own reply, so that reply is kept while this pane still waits on it. Called once,
+      // when the call settles.
       const settlesHere = (): boolean => {
         const waitedOn = commandInFlight.current === request
         if (waitedOn) {
