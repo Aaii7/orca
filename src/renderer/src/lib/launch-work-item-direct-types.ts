@@ -31,8 +31,10 @@ export type LaunchWorkItemDirectArgs = {
   telemetrySource?: WorkspaceCreateTelemetrySource
   agentOverride?: TuiAgent
   agentArgs?: string | null
-  /** Explicit chat options for `agentOverride`; terminal routes keep CLI arguments. */
+  /** The saved choice for `agentOverride`; a chat seeds it and a terminal applies it as flags. */
   sessionOptions?: Readonly<Record<string, string>>
+  /** On terminals, a flag `agentArgs` sets itself wins over the inherited saved choice. */
+  sessionOptionsYieldToAgentArgs?: true
   resolveSessionOptions?: (agent: TuiAgent) => Readonly<Record<string, string>> | undefined
   /** For `agentOverride`: a picked surface and host, or a saved replay's terminal. */
   launchChoice?: Pick<AgentLaunchChoice, 'requestedSurface' | 'executionHostId'>

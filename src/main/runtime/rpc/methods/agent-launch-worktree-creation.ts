@@ -56,7 +56,7 @@ export function agentLaunchWorkspaceFactory(
       options,
       accountEnv
     }) => {
-      const startupLaunchPreferences = toAgentLaunchPreferences(options)
+      const startupLaunchPreferences = toAgentLaunchPreferences(options, startupAgent)
       let promptRodeLaunchCommand = false
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: already validated by `AgentLaunch`; the executor only removed the reserved agent fields, so the rest of the payload is the parsed shape.
       const params = create as WorktreeCreateParams
@@ -125,6 +125,7 @@ export function agentLaunchWorkspaceFactory(
           ) ?? result.warning
         return {
           worktreeId: result.worktree.id,
+          workspacePath: result.worktree.path,
           connectionId: repo.connectionId ?? null,
           startupTerminalHandle: result.startupTerminal?.handle,
           ...(promptRodeLaunchCommand ? { promptRodeLaunchCommand } : {}),

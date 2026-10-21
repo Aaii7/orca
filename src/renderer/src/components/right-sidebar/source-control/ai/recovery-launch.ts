@@ -15,7 +15,7 @@ import {
 import { isTuiAgentEnabled } from '../../../../../../shared/tui-agent-selection'
 import {
   resolveSourceControlActionRequestedSurface,
-  resolveSourceControlActionSessionOptions
+  sourceControlActionLaunchOptions
 } from '../../../../../../shared/source-control-action-launch-preferences'
 import type {
   SourceControlActionRecipe,
@@ -147,7 +147,6 @@ export async function launchSourceControlRecoveryAgentWithDefault({
     toast.error(copy.noEnabledAgent)
     return false
   }
-  const sessionOptions = resolveSourceControlActionSessionOptions(savedRecipe, agent)
   const result = launchAgentInNewTab({
     requestId: newAgentLaunchRequestId(),
     agent,
@@ -155,7 +154,7 @@ export async function launchSourceControlRecoveryAgentWithDefault({
     groupId: activeGroupId ?? activeWorktreeId,
     prompt,
     agentArgs: savedRecipe.agentArgs,
-    ...(sessionOptions ? { sessionOptions } : {}),
+    ...sourceControlActionLaunchOptions(savedRecipe, agent),
     requestedSurface: resolveSourceControlActionRequestedSurface(savedRecipe, agent),
     promptDelivery: 'submit-after-ready',
     launchPlatform: activeSourceControlLaunchPlatform,

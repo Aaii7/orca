@@ -33,7 +33,7 @@ function getRecipeOverrideFieldLabel(field: SourceControlActionRecipeOverrideFie
         'Command template'
       )
     case 'launchPreferences':
-      return translate('settings.sourceControl.actionModel.chatOptions', 'Chat options')
+      return translate('settings.sourceControl.actionModel.launchOptions', 'Model and permissions')
     case 'surface':
       return translate(
         'auto.components.settings.SourceControlActionRepoOverrideNote.surface',

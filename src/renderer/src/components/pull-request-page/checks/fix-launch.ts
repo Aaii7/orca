@@ -56,6 +56,7 @@ export async function startFixChecksFromDialog(args: {
   agentArgs?: string
   sessionOptions?: Readonly<Record<string, string>>
   launchChoice?: Parameters<typeof launchWorkItemDirect>[0]['launchChoice']
+  sessionOptionsYieldToAgentArgs?: true
 }): Promise<boolean> {
   if (!args.targetRepoId) {
     return false
@@ -70,6 +71,7 @@ export async function startFixChecksFromDialog(args: {
     agentArgs: args.agentArgs,
     ...(args.sessionOptions ? { sessionOptions: args.sessionOptions } : {}),
     ...(args.launchChoice ? { launchChoice: args.launchChoice } : {}),
+    sessionOptionsYieldToAgentArgs: args.sessionOptionsYieldToAgentArgs,
     openModalFallback: () => {
       toast.error(
         translate(

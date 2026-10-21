@@ -29,7 +29,8 @@ import type { LaunchSource } from '../../../shared/telemetry-events'
 import { translate } from '@/i18n/i18n'
 import {
   resolveSourceControlActionRequestedSurface,
-  resolveSourceControlActionSessionOptions
+  resolveSourceControlActionSessionOptions,
+  sourceControlActionLaunchOptions
 } from '../../../shared/source-control-action-launch-preferences'
 
 type StartFixChecksAgentArgs = {
@@ -178,7 +179,6 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
       )
       return false
     }
-    const sessionOptions = resolveSourceControlActionSessionOptions(recipe, agent)
     let revealFailed = false
     const result = launchAgentInNewTab({
       requestId: newAgentLaunchRequestId(),
@@ -187,7 +187,7 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
       groupId: args.groupId ?? targetWorktreeId,
       prompt: commandInput,
       agentArgs: recipe.agentArgs,
-      ...(sessionOptions ? { sessionOptions } : {}),
+      ...sourceControlActionLaunchOptions(recipe, agent),
       requestedSurface: resolveSourceControlActionRequestedSurface(recipe, agent),
       promptDelivery: 'submit-after-ready',
       launchPlatform,
@@ -255,6 +255,7 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
           }
         }
       : {}),
+    sessionOptionsYieldToAgentArgs: recipe.launchPreferencesYieldToAgentArgs,
     openModalFallback: args.openModalFallback
   })
 }

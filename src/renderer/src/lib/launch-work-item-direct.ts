@@ -63,8 +63,7 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
     baseBranch,
     telemetrySource,
     launchSource,
-    agentOverride,
-    agentArgs
+    agentOverride
   } = args
   const store = useAppStore.getState()
   const owner = resolveDirectLaunchOwnerRow(store.repos, repoId)
@@ -238,10 +237,11 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
       worktreePath,
       repoId,
       agentOverride: preflightPlan?.agent ?? agentOverride,
-      agentArgs,
+      agentArgs: args.agentArgs,
       ...(args.sessionOptions ? { sessionOptions: args.sessionOptions } : {}),
       resolveSessionOptions: args.resolveSessionOptions,
       launchChoice: args.launchChoice,
+      sessionOptionsYieldToAgentArgs: args.sessionOptionsYieldToAgentArgs,
       repoConnectionId,
       repoHost: repo,
       detectedAgentsPromise,
@@ -290,6 +290,7 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
       beforeOpen: revealWorkspace,
       declinedTerminal: {
         ...(agentArgs !== undefined ? { agentArgs } : {}),
+        sessionOptionsYieldToAgentArgs: args.sessionOptionsYieldToAgentArgs,
         ...(args.launchPlatform ? { launchPlatform: args.launchPlatform } : {}),
         ...(launchSource ? { launchSource } : {})
       }
