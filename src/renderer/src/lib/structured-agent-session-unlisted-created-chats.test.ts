@@ -4,7 +4,10 @@ import { expect, it, vi } from 'vitest'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-types'
 import { getDefaultSettings } from '../../../shared/constants'
 
-const host = vi.hoisted(() => ({ replies: [] as ((value: unknown) => void)[], list: {} }))
+const host = vi.hoisted(() => {
+  const replies: ((value: unknown) => void)[] = []
+  return { replies, list: {} }
+})
 vi.mock('@/runtime/structured-agent-session-client', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   callStructuredAgentSession: (_target: unknown, method: string) =>
