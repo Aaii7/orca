@@ -1,4 +1,4 @@
-import type { OrcaRuntimeWithScheduleMobileSessionTabsChanged as ScheduleMobileSessionTabsChangedMethods } from '../orca-runtime-schedule-mobile-session-tabs-changed'
+import type { OrcaRuntimeWithScheduleMobileSessionTabsChanged as ScheduleMobileSessionTabsChangedMethods } from './session-tabs-change-publication'
 import { defaultAgentChatLabel } from '../../../shared/agent-session-chat-label'
 import { OrcaRuntimeWithGetStructuredAgentSessionCreateSupport } from './structured-session-create-support'
 import { getStructuredAgentSessionHost } from '../../native-chat/agent-session-wire/structured-agent-session-registry'
@@ -180,15 +180,19 @@ export abstract class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce exten
         tabOrder: []
       }
     ]
-    const groupId = priorGroups.some((group) => group.id === existing?.activeGroupId)
-      ? existing!.activeGroupId!
-      : priorGroups[0]!.id
+    // Why: the window can list the chat before main restores its row; keep the place it gave it.
+    const listingGroupId = priorGroups.find((group) => group.tabOrder.includes(id))?.id
+    const groupId =
+      listingGroupId ??
+      (priorGroups.some((group) => group.id === existing?.activeGroupId)
+        ? existing!.activeGroupId!
+        : priorGroups[0]!.id)
     const tabGroups = priorGroups.map((group) =>
       group.id === groupId
         ? {
             ...group,
             activeTabId: input.activate ? id : group.activeTabId,
-            tabOrder: [...group.tabOrder, id]
+            tabOrder: listingGroupId ? group.tabOrder : [...group.tabOrder, id]
           }
         : group
     )

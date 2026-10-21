@@ -116,6 +116,7 @@ describe('useNativeChatComposerRevealFocus', () => {
     tab.focus()
 
     act(() => requestNativeChatComposerFocus('chat-tab'))
+    expect(container.querySelector('textarea')).toBe(document.activeElement)
     drainFrames()
 
     expect(container.querySelector('textarea')).toBe(document.activeElement)
@@ -447,6 +448,21 @@ describe('useNativeChatComposerRevealFocus', () => {
     expect(focusCalls).toBe(0)
     expect(document.activeElement).toBe(outside)
     outside.remove()
+  })
+
+  it('claims focus from the composer of the chat tab hidden by the same switch', () => {
+    const hiddenPane = document.createElement('div')
+    const previousComposer = document.createElement('textarea')
+    hiddenPane.appendChild(previousComposer)
+    document.body.appendChild(hiddenPane)
+    previousComposer.focus()
+    render({ isVisible: false, isFocusedGroup: true })
+    // Chromium leaves focus on the hidden field until a later task, after the reveal claim runs.
+    hiddenPane.setAttribute('inert', '')
+    render({ isVisible: true, isFocusedGroup: true })
+    drainFrames()
+    expect(container.querySelector('textarea')).toBe(document.activeElement)
+    hiddenPane.remove()
   })
 
   it('still claims focus from the covered xterm helper textarea', () => {

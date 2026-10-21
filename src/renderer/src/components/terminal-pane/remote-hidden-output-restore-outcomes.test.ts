@@ -452,6 +452,7 @@ describe('remote hidden-output restore outcomes', () => {
       ptyIdsByTabId: {
         'tab-1': ['tab-pty']
       },
+      terminalPaneStartsByPaneKey: {},
       terminalLayoutsByTabId: {
         'tab-1': {
           root: { type: 'leaf', leafId: LEAF_1 },
@@ -591,6 +592,10 @@ describe('remote hidden-output restore outcomes', () => {
     await flushAsyncTicks(20)
 
     expect(serializeBufferOutcome).toHaveBeenCalledTimes(1)
+    // Why: the multiplexer only moves its gap baseline for images a pane repaints from.
+    expect(serializeBufferOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ repaintsPane: true })
+    )
     expect(drive.writtenChunks().join('')).toContain(HOST_SNAPSHOT_MARKER)
     expect(serializeBuffer).not.toHaveBeenCalled()
     drive.disposable.dispose()

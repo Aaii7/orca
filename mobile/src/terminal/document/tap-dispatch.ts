@@ -1,5 +1,5 @@
 import { handleDragMove, stopEdgeScroll } from './selection-overlay'
-import { cancelSelect, enterSelect } from './selection-range'
+import { cancelSelect, enterSelect } from './selection-mode'
 import { notify } from './host-notify'
 import { viewportToCell } from './viewport-cell'
 import type { TerminalDocumentScope } from './document-scope'
@@ -73,6 +73,13 @@ export function armLongPress(scope: TerminalDocumentScope, touch: Touch) {
       return
     }
     enterSelect(scope, c.col, c.row)
+    // Keep the long-press finger on the selection instead of scrolling beneath it.
+    if (scope.sel && scope.touchDispatch.mode === 'surface') {
+      scope.sel.activeHandle = 'end'
+      scope.touchDispatch.mode = 'select-drag'
+      scope.touchDispatch.touchId = scope.longPressOrigin.identifier
+      scope.tapCandidate = null
+    }
   }, LONG_PRESS_MS)
 }
 
