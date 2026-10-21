@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { truncateAiVaultListResult } from '../../shared/ai-vault-session-depth'
+import type { AiVaultListResult } from '../../shared/ai-vault-types'
 import { parseSessionCandidates } from './session-scanner-candidate-parse'
 import {
   MAX_UNLISTED_ENTRIES,
@@ -16,6 +17,8 @@ import {
 } from './session-parse-cache-store'
 import { createSessionParseStats, parseAgentSessionFileCached } from './session-scanner-parse-cache'
 import { scanAiVaultSessions } from './session-scanner'
+import { createAntigravityWorkspaceResolver } from './session-scanner-antigravity-history'
+import { scanInScopeSessions } from './session-scanner-scope-walk'
 import * as eventLoop from '../../shared/event-loop-yield'
 import { AI_VAULT_SCOPE_CWD_SOURCES } from './session-scope-cwd'
 import { SessionParseCacheDatabase } from './session-parse-cache-database'
@@ -232,11 +235,12 @@ it('admits the newest scoped activity when copied Hermes files have newer mtimes
       .sessions.filter((row) => row.cwd === '/repo')
       .map((row) => row.sessionId)
   ).toEqual(['hermes-16'])
-  expect(
-    truncateAiVaultListResult(await scan(2), 1, ['/repo'])
-      .sessions.filter((row) => row.cwd === '/repo')
-      .map((row) => row.sessionId)
-  ).toEqual(['hermes-16'])
+  const deeper = await scan(2)
+  const scopedIds = (rows: AiVaultListResult) =>
+    rows.sessions.filter((row) => row.cwd === '/repo').map((row) => row.sessionId)
+  expect(scopedIds(deeper)[0]).toBe('hermes-16')
+  // A deeper cached scan serving depth 1 keeps every scoped row it found.
+  expect(scopedIds(truncateAiVaultListResult(deeper, 1, ['/repo']))).toEqual(scopedIds(deeper))
 })
 
 it('delivers cancellation while traversing unchanged cached candidates', async () => {
@@ -334,4 +338,36 @@ it('uses a cold parsed latest Codex cwd after its unlisted row is evicted', asyn
   expect(read).toHaveBeenCalledWith(path)
   expect(peekSessionParseCacheEntry(path)?.session).toBe(parsed)
   expect(await stat(path)).toMatchObject({ mtimeMs, size: sizeBytes })
+})
+
+it('walks a history larger than the spread-argument limit', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'orca-scope-huge-'))
+  tempRoots.push(root)
+  const sessionsDir = join(root, 'sessions')
+  const path = await writeRollout(sessionsDir, 'huge-history', '/repo', '15')
+  const { mtimeMs, mtime } = await stat(path)
+  const older = Array.from({ length: 200_000 }, (_, index) => ({
+    path: join(sessionsDir, `rollout-old-${index}.jsonl`),
+    mtimeMs: 1,
+    modifiedAt: new Date(1).toISOString()
+  }))
+  const sessions = await scanInScopeSessions({
+    discoveries: [
+      {
+        agent: 'codex',
+        rootDir: sessionsDir,
+        files: [{ path, mtimeMs, modifiedAt: mtime.toISOString() }],
+        scopeFiles: older
+      }
+    ],
+    options: { scopePaths: ['/repo'] },
+    limit: 1,
+    alreadyParsedFilePaths: new Set(),
+    platform: 'linux',
+    executionHostId: 'local',
+    issues: [],
+    parseStats: createSessionParseStats(),
+    antigravityWorkspaceResolver: createAntigravityWorkspaceResolver(async () => null)
+  })
+  expect(sessions.map((session) => session.sessionId)).toEqual(['huge-history'])
 })
