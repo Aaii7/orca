@@ -170,7 +170,7 @@ export function RepositorySourceControlAiActionRows({
                   </span>
                   <span>
                     {agentArgsStateLabel({
-                      hasOverride,
+                      hasOverride: override?.agentArgs !== undefined,
                       inheritedAgentArgs,
                       repoAgentArgs: agentArgsValue
                     })}
