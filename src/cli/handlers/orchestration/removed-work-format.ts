@@ -83,7 +83,10 @@ export function formatRemovedWorkListing(
 
 export function formatResetResult(result: { reset: string; removed?: ResetRemovedWork }): string {
   const removed = result.removed
-  if (!removed || removed.tasks + removed.dispatches + removed.workers === 0) {
+  if (
+    !removed ||
+    (removed.tasks + removed.dispatches + removed.workers === 0 && removed.runs === 0)
+  ) {
     return `Reset: ${result.reset}`
   }
   const running = removed.possiblyRunning
