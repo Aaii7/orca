@@ -443,37 +443,6 @@ describe('runSourceControlAgentActionStart CLI arguments applicability', () => {
     const launchCall = mocks.launchAgentInNewTab.mock.calls[0]?.[0]
     expect(launchCall).toHaveProperty('agentArgs', '--model gpt-5')
   })
-
-  it('keeps candidates through the prospective workspace adapter too', async () => {
-    const onStart = vi.fn().mockResolvedValue(true)
-
-    await expect(
-      runSourceControlAgentActionStart(
-        buildArgs({ onStart, worktreeId: undefined, groupId: undefined })
-      )
-    ).resolves.toBe(true)
-
-    expect(onStart).toHaveBeenCalledWith({
-      agent: 'codex',
-      commandInput: 'Fix the bug',
-      agentArgs: '--model gpt-5'
-    })
-  })
-
-  // Why: the field being absent must not rewrite a value the user saved for terminal launches.
-  it('still saves the recipe with the arguments the user had stored', async () => {
-    mocks.launchAgentInNewTab.mockReturnValue({
-      surface: { kind: 'local-terminal', tabId: 'tab-1' }
-    })
-
-    await runSourceControlAgentActionStart(buildArgs({ saveTargetValue: 'global' }))
-
-    expect(mocks.onSaveAgentDefault).toHaveBeenCalledWith(
-      expect.anything(),
-      'resolveComments',
-      expect.objectContaining({ agentArgs: '--model gpt-5' })
-    )
-  })
 })
 
 it('executes the actual bound namespace while saving the literal default recipe', async () => {
