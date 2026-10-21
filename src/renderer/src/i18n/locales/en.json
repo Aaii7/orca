@@ -11888,7 +11888,8 @@
           "review": "Review",
           "reviewFirst": "Review first",
           "singular": "Global saves won't change 1 repository with its own recipe.",
-          "tooltipTitle": "Repository overrides"
+          "tooltipTitle": "Repository overrides",
+          "surface": "Chat or CLI"
         },
         "linear": {
           "agent": {

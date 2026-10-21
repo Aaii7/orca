@@ -3,6 +3,7 @@ import type { TaskProvider } from '../../../shared/task-providers'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { WorkspaceSource as WorkspaceCreateTelemetrySource } from '../../../shared/workspace-source'
 import type { LaunchSource } from '../../../shared/telemetry-events'
+import type { AgentLaunchChoice } from '@/lib/agent-menu-selection'
 
 export type LaunchableWorkItem = {
   provider?: TaskProvider
@@ -33,6 +34,8 @@ export type LaunchWorkItemDirectArgs = {
   /** Explicit chat options for `agentOverride`; terminal routes keep CLI arguments. */
   sessionOptions?: Readonly<Record<string, string>>
   resolveSessionOptions?: (agent: TuiAgent) => Readonly<Record<string, string>> | undefined
+  /** For `agentOverride`: a picked surface and host, or a saved replay's terminal. */
+  launchChoice?: Pick<AgentLaunchChoice, 'requestedSurface' | 'executionHostId'>
   promptDelivery?: 'draft' | 'submit-after-ready'
   launchPlatform?: NodeJS.Platform
 }

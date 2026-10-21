@@ -57,6 +57,7 @@ function buildSavedLaunchRecipe(input: {
   savedCommandInputTemplate?: string | null
   savedAgentArgs?: string | null
   savedLaunchPreferences?: SourceControlActionRecipe['launchPreferences']
+  savedSurface?: SourceControlActionRecipe['surface']
 }): SourceControlActionRecipe | null {
   if (!input.savedAgentId) {
     return null
@@ -65,7 +66,8 @@ function buildSavedLaunchRecipe(input: {
     agentId: input.savedAgentId,
     commandInputTemplate: input.savedCommandInputTemplate ?? '{basePrompt}',
     agentArgs: input.savedAgentArgs ?? '',
-    ...(input.savedLaunchPreferences ? { launchPreferences: input.savedLaunchPreferences } : {})
+    ...(input.savedLaunchPreferences ? { launchPreferences: input.savedLaunchPreferences } : {}),
+    ...(input.savedSurface ? { surface: input.savedSurface } : {})
   }
 }
 
@@ -113,6 +115,7 @@ function buildReceiptKey(input: {
   savedCommandInputTemplate?: string | null
   savedAgentArgs?: string | null
   savedLaunchPreferences?: SourceControlActionRecipe['launchPreferences']
+  savedSurface?: SourceControlActionRecipe['surface']
   repoId?: string | null
   connectionId?: string | null
   worktreeId?: string | null
@@ -125,6 +128,7 @@ function buildReceiptKey(input: {
     input.savedCommandInputTemplate ?? '{basePrompt}',
     input.savedAgentArgs ?? '',
     input.savedLaunchPreferences ?? null,
+    input.savedSurface ?? null,
     input.repoId ?? null,
     input.connectionId ?? null,
     input.worktreeId ?? null,
@@ -158,9 +162,11 @@ export function useSavedSourceControlAgentActionAutoStart({
   const autoStartedOpenCycleRef = useRef(0)
   const [receiptState, setReceiptState] = useState<AutoLaunchReceiptState | null>(null)
 
-  const savedLaunchPreferences = useMemo(() => {
+  const { savedLaunchPreferences, savedSurface } = useMemo(() => {
     const effective = resolveSourceControlActionRecipe({ settings, repo, actionId })
-    return effective.agentId === savedAgentId ? effective.launchPreferences : undefined
+    return effective.agentId === savedAgentId
+      ? { savedLaunchPreferences: effective.launchPreferences, savedSurface: effective.surface }
+      : { savedLaunchPreferences: undefined, savedSurface: undefined }
   }, [actionId, repo, savedAgentId, settings])
   const savedLaunchRecipe = useMemo(
     () =>
@@ -168,9 +174,10 @@ export function useSavedSourceControlAgentActionAutoStart({
         savedAgentId,
         savedCommandInputTemplate,
         savedAgentArgs,
-        savedLaunchPreferences
+        savedLaunchPreferences,
+        savedSurface
       }),
-    [savedAgentArgs, savedAgentId, savedCommandInputTemplate, savedLaunchPreferences]
+    [savedAgentArgs, savedAgentId, savedCommandInputTemplate, savedLaunchPreferences, savedSurface]
   )
   const matchedSavedReceiptTargetValue = useMemo(
     () =>
@@ -194,6 +201,7 @@ export function useSavedSourceControlAgentActionAutoStart({
       savedCommandInputTemplate,
       savedAgentArgs,
       savedLaunchPreferences,
+      savedSurface,
       repoId,
       connectionId,
       worktreeId,
@@ -209,6 +217,7 @@ export function useSavedSourceControlAgentActionAutoStart({
     savedAgentId,
     savedCommandInputTemplate,
     savedLaunchPreferences,
+    savedSurface,
     worktreeId
   ])
 

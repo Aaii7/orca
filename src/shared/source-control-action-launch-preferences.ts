@@ -63,3 +63,12 @@ export function resolveSourceControlActionSessionOptions(
       : {})
   }
 }
+
+/** Saved replays request only a saved terminal; a saved chat follows the settings route, which can
+ *  still fall back to a terminal where the host no longer runs chats. */
+export function resolveSourceControlActionRequestedSurface(
+  recipe: Pick<SourceControlActionRecipe, 'agentId' | 'surface'>,
+  agent: TuiAgent
+): 'terminal' | undefined {
+  return recipe.surface === 'terminal' && recipe.agentId === agent ? 'terminal' : undefined
+}

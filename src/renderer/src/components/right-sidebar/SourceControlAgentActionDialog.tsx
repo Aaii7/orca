@@ -11,6 +11,7 @@ import type {
   SourceControlLaunchActionId
 } from '../../../../shared/source-control-ai-actions'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AgentLaunchChoice } from '@/lib/agent-menu-selection'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
 import type { SourceControlAiWriteTarget } from '../../../../shared/source-control-ai-recipe-save'
 import { SourceControlAgentActionDialogForm } from './SourceControlAgentActionDialogForm'
@@ -55,6 +56,8 @@ export type SourceControlAgentActionDialogProps = {
     agentArgs?: string
     /** The action's saved model and effort, on either route. */
     sessionOptions?: Readonly<Record<string, string>>
+    /** The picked agent's surface and host; a saved replay only ever requests a terminal. */
+    launchChoice?: AgentLaunchChoice
   }) => boolean | Promise<boolean>
 }
 
@@ -80,6 +83,7 @@ export function SourceControlAgentActionDialog(
     selectedAgent,
     hasEnabledAgents,
     detecting,
+    surfaceRows,
     statusCopy,
     agentArgs,
     agentArgsApply,
@@ -93,7 +97,7 @@ export function SourceControlAgentActionDialog(
     deliveryPlan,
     canStart,
     isStarting,
-    onSelectedAgentChange,
+    onAgentPick,
     onAgentArgsChange,
     onCommandTemplateChange,
     onSaveLaunchRecipeChange,
@@ -119,6 +123,7 @@ export function SourceControlAgentActionDialog(
             selectedAgent={selectedAgent}
             hasEnabledAgents={hasEnabledAgents}
             detecting={detecting}
+            surfaceRows={surfaceRows}
             statusCopy={statusCopy}
             agentArgs={agentArgs}
             agentArgsApply={agentArgsApply}
@@ -135,7 +140,7 @@ export function SourceControlAgentActionDialog(
             canStart={canStart}
             isStarting={isStarting}
             startLabel={startLabel}
-            onSelectedAgentChange={onSelectedAgentChange}
+            onAgentPick={onAgentPick}
             onAgentArgsChange={onAgentArgsChange}
             onCommandTemplateChange={onCommandTemplateChange}
             onSaveLaunchRecipeChange={onSaveLaunchRecipeChange}

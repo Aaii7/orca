@@ -92,6 +92,7 @@ export type SourceControlActionRecipeOverrideField =
   | 'commandTemplate'
   | 'agentArgs'
   | 'launchPreferences'
+  | 'surface'
 
 export type SourceControlActionRecipeOverride = {
   repoId: string
@@ -133,6 +134,9 @@ function readRecipeOverrideFields(
   }
   if (Object.hasOwn(recipe ?? {}, 'launchPreferences')) {
     fields.push('launchPreferences')
+  }
+  if (Object.hasOwn(recipe ?? {}, 'surface')) {
+    fields.push('surface')
   }
   return fields
 }

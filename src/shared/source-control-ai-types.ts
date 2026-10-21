@@ -4,6 +4,7 @@ import type { CustomAgentId } from './commit-message-agent-spec'
 import type {
   SourceControlAiActionDefaults,
   SourceControlActionLaunchPreferences,
+  SourceControlActionSurface,
   SourceControlActionId,
   SourceControlTextActionId,
   AiTextActionId
@@ -61,6 +62,7 @@ export type RepoSourceControlAiOverrides = {
         commandInputTemplate?: string | null
         agentArgs?: string | null
         launchPreferences?: SourceControlActionLaunchPreferences
+        surface?: SourceControlActionSurface
       }
     >
   >
@@ -77,6 +79,7 @@ export type CompleteSourceControlActionRecipe = {
   commandInputTemplate: string
   agentArgs?: string
   launchPreferences?: SourceControlActionLaunchPreferences
+  surface?: SourceControlActionSurface
 }
 
 export type WritableRepoSourceControlAiOverrides = {

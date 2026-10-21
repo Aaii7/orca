@@ -20,6 +20,7 @@ import type { Repo } from '../../../shared/repo-types'
 import type { OrcaHooks, RepoHookSettings } from '../../../shared/orca-yaml-hook-types'
 import type { SetupDecision } from '../../../shared/worktree/create-types'
 import type { GitHubPrStartPoint } from '../../../shared/worktree/types'
+import type { LaunchWorkItemDirectArgs } from './launch-work-item-direct-types'
 
 export async function resolveDirectPrStartPoint(
   repoId: string,
@@ -106,6 +107,7 @@ export async function planDirectWorkItemLaunch(args: {
   promptDelivery: 'draft' | 'submit-after-ready'
   resolveSessionOptions?: (agent: TuiAgent) => Readonly<Record<string, string>> | undefined
   sessionOptions?: Readonly<Record<string, string>>
+  launchChoice?: LaunchWorkItemDirectArgs['launchChoice']
 }) {
   const { prospectiveAgent, projectContext } = args
   if (!prospectiveAgent) {
@@ -125,10 +127,21 @@ export async function planDirectWorkItemLaunch(args: {
     },
     prompt: args.draftContent,
     promptDelivery: args.promptDelivery,
-    ...(sessionOptions ? { launchOptions: sessionOptions } : {})
+    ...(sessionOptions ? { launchOptions: sessionOptions } : {}),
+    ...directLaunchSurfaceRequest(args.launchChoice)
   }
   await awaitStructuredRouteHostAnswer(useAppStore.getState(), request, 3000)
   return planAgentSessionLaunch(useAppStore.getState(), request)
+}
+
+/** A picked surface stays explicit through both planning sites; none follows the settings route. */
+export function directLaunchSurfaceRequest(
+  choice: LaunchWorkItemDirectArgs['launchChoice']
+): Pick<AgentSessionLaunchRequest, 'requestedSurface' | 'selectedExecutionHostId'> {
+  return {
+    ...(choice?.requestedSurface ? { requestedSurface: choice.requestedSurface } : {}),
+    ...(choice?.executionHostId ? { selectedExecutionHostId: choice.executionHostId } : {})
+  }
 }
 
 export async function resolveDirectProspectiveAgent(

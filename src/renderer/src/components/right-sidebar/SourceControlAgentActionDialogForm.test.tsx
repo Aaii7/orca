@@ -58,6 +58,11 @@ function renderForm(
       selectedAgent: 'codex',
       hasEnabledAgents: true,
       detecting: false,
+      surfaceRows: {
+        model: { state: 'loading', placeholderCount: 0 },
+        selection: { ready: true, cli: false },
+        onPick: () => {}
+      },
       statusCopy: null,
       agentArgs: '',
       agentArgsApply: true,
@@ -81,7 +86,7 @@ function renderForm(
       canStart: true,
       isStarting: false,
       startLabel: 'Start agent',
-      onSelectedAgentChange: () => {},
+      onAgentPick: () => {},
       onAgentArgsChange: () => {},
       onCommandTemplateChange: () => {},
       onSaveLaunchRecipeChange: () => {},

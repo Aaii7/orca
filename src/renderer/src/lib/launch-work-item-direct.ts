@@ -178,7 +178,8 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
     draftContent,
     promptDelivery,
     resolveSessionOptions: args.resolveSessionOptions,
-    sessionOptions: args.sessionOptions
+    sessionOptions: args.sessionOptions,
+    launchChoice: args.launchChoice
   })
   if (!projectContext || preflightPlan?.route !== 'structured-native-chat') {
     const agentArgsPlan = planAgentCliArgsSuffix(agentArgs, shell)
@@ -240,6 +241,7 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
       agentArgs,
       ...(args.sessionOptions ? { sessionOptions: args.sessionOptions } : {}),
       resolveSessionOptions: args.resolveSessionOptions,
+      launchChoice: args.launchChoice,
       repoConnectionId,
       repoHost: repo,
       detectedAgentsPromise,

@@ -62,6 +62,7 @@ import { useAppStore, type AppState } from '@/store'
 import { setLocalRuntimeCapabilitiesForTests } from '@/runtime/local-runtime-capabilities'
 import { SourceControlAgentActionDialog } from './SourceControlAgentActionDialog'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
+import { getRuntimeAgentInventoryKey } from '@/store/slices/runtime-agent-inventory-key'
 let container: HTMLDivElement
 let root: Root
 let initialState: AppState
@@ -125,6 +126,28 @@ function resetStore(settings: GlobalSettings, repos: Repo[] = []): void {
     true
   )
 }
+// The dialog reads the store's inventory, so the probes write it the way the real actions do.
+function detects(ids: TuiAgent[]): void {
+  mocks.ensureDetectedAgents.mockImplementation(async () => {
+    useAppStore.setState({ detectedAgentIds: ids })
+    return ids
+  })
+  mocks.ensureRemoteDetectedAgents.mockImplementation(async (connectionId: string) => {
+    useAppStore.setState((state) => ({
+      remoteDetectedAgentIds: { ...state.remoteDetectedAgentIds, [connectionId]: ids }
+    }))
+    return ids
+  })
+  mocks.ensureRuntimeDetectedAgents.mockImplementation(
+    async (environmentId: string, worktreeId?: string) => {
+      const key = getRuntimeAgentInventoryKey(environmentId, worktreeId)
+      useAppStore.setState((state) => ({
+        runtimeDetectedAgentIds: { ...state.runtimeDetectedAgentIds, [key]: ids }
+      }))
+      return ids
+    }
+  )
+}
 function renderControlledDialog(
   overrides: Partial<React.ComponentProps<typeof SourceControlAgentActionDialog>> = {},
   options: { strictMode?: boolean } = {}
@@ -181,9 +204,7 @@ describe('SourceControlAgentActionDialog', () => {
     ).IS_REACT_ACT_ENVIRONMENT = true
     initialState = useAppStore.getState()
     vi.clearAllMocks()
-    mocks.ensureDetectedAgents.mockResolvedValue(['codex'])
-    mocks.ensureRemoteDetectedAgents.mockResolvedValue(['codex'])
-    mocks.ensureRuntimeDetectedAgents.mockResolvedValue(['codex'])
+    detects(['codex'])
     mocks.onStart.mockResolvedValue(true)
     mocks.checkSourceControlAgentActionLaunch.mockReturnValue({ ok: true })
     container = document.createElement('div')
@@ -208,7 +229,9 @@ describe('SourceControlAgentActionDialog', () => {
     expect(mocks.onStart).toHaveBeenCalledWith({
       agent: 'codex',
       commandInput: 'Resolve conflicts.',
-      agentArgs: ''
+      agentArgs: '',
+      // A saved replay with no saved surface follows the settings route.
+      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
     })
     expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
     expect(mocks.onSaveAgentDefault).not.toHaveBeenCalled()
@@ -253,13 +276,20 @@ describe('SourceControlAgentActionDialog', () => {
     expect(mocks.onStart).toHaveBeenCalledWith({
       agent: 'codex',
       commandInput: 'Resolve conflicts.',
-      agentArgs: '--model saved'
+      agentArgs: '--model saved',
+      // A saved replay with no saved surface follows the settings route.
+      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
     })
   })
   // Why (#21429): a paired server's workspace has no SSH connection on this client; its agents
   // are on the server, and this client's own list says nothing about them.
   it('detects agents on the paired server that owns the workspace', async () => {
-    mocks.ensureDetectedAgents.mockResolvedValue([])
+    detects([])
+    mocks.ensureRuntimeDetectedAgents.mockImplementation(async (environmentId, worktreeId) => {
+      const key = getRuntimeAgentInventoryKey(environmentId, worktreeId)
+      useAppStore.setState({ runtimeDetectedAgentIds: { [key]: ['codex'] } })
+      return ['codex']
+    })
     resetStore(settingsWithGlobalRecipe(), [repoWithSavedRecipe('', null, 'runtime:env-1')])
     useAppStore.setState({
       worktreesByRepo: { 'repo-1': [makeWorktree({ id: 'repo-1::wt-1', repoId: 'repo-1' })] }
@@ -292,7 +322,9 @@ describe('SourceControlAgentActionDialog', () => {
     expect(mocks.onStart).toHaveBeenCalledWith({
       agent: 'codex',
       commandInput: 'Resolve conflicts.',
-      agentArgs: undefined
+      agentArgs: undefined,
+      // A saved replay with no saved surface follows the settings route.
+      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
     })
   })
   it('renders the form and does not auto-start when the saved launch recipe mismatches', async () => {
@@ -307,10 +339,9 @@ describe('SourceControlAgentActionDialog', () => {
     expect(container.textContent).toContain('Save & start agent')
   })
   it('reveals the form with status copy when the saved agent is unavailable', async () => {
-    mocks.ensureDetectedAgents.mockResolvedValue([])
+    detects([])
     resetStore(settingsWithGlobalRecipe())
     renderControlledDialog()
-    expect(container.textContent).not.toContain('Launch agent')
     await vi.waitFor(() =>
       expect(container.textContent?.toLowerCase()).toContain('not enabled or was not detected')
     )

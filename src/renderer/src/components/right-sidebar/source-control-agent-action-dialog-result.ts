@@ -3,6 +3,8 @@ import type { useAppStore } from '@/store'
 import type { useRepoById } from '@/store/selectors'
 import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AgentLaunchSurface } from '@/lib/agent-session-launch-plan'
+import type { AgentComboboxSurfaceRows } from '@/components/agent/agent-combobox-surface-items'
 import type { SourceControlAgentActionDeliveryPlanState } from './SourceControlAgentActionDialogForm'
 
 export type SourceControlAgentScopeNote = {
@@ -18,6 +20,7 @@ export type UseSourceControlAgentActionDialogResult = {
   selectedAgent: TuiAgent | null
   hasEnabledAgents: boolean
   detecting: boolean
+  surfaceRows: AgentComboboxSurfaceRows
   statusCopy: string | null
   agentArgs: string
   /** False when this launch would be a structured native chat session, which reads no CLI arguments. */
@@ -32,7 +35,7 @@ export type UseSourceControlAgentActionDialogResult = {
   deliveryPlan: SourceControlAgentActionDeliveryPlanState
   canStart: boolean
   isStarting: boolean
-  onSelectedAgentChange: (agent: TuiAgent | null) => void
+  onAgentPick: (agent: TuiAgent, surface?: AgentLaunchSurface) => void
   onAgentArgsChange: (value: string) => void
   onCommandTemplateChange: (value: string) => void
   onSaveLaunchRecipeChange: (value: boolean) => void

@@ -5,15 +5,24 @@ import './settings-persistence-test-fixture'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { normalizeRepoSourceControlAiOverrides } from '../../../../shared/source-control-ai'
-import type { SourceControlAiSettings } from '../../../../shared/source-control-ai-types'
+import type {
+  RepoSourceControlAiOverrides,
+  SourceControlAiSettings
+} from '../../../../shared/source-control-ai-types'
 import {
   SOURCE_CONTROL_ACTION_IDS,
   type SourceControlActionId
 } from '../../../../shared/source-control-ai-actions'
 import {
   computeActionDirtyById,
-  dropRepoLegacyInstructionForAction
+  dropRepoLegacyInstructionForAction,
+  withRepoAiActionMode
 } from './repository-source-control-ai-draft'
+import { withRepoAiActionAgent } from './repository-source-control-ai-action-agent-draft'
+import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
+import { setSourceControlActionAgentDefault } from '../../../../shared/source-control-ai-actions'
+import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
+import { sourceControlActionRecipeMatchesTarget } from '../right-sidebar/source-control-action-recipe-match'
 import { RepositorySourceControlAiActionRows } from './RepositorySourceControlAiActionRows'
 import { RepositorySourceControlAiEnablement } from './RepositorySourceControlAiEnablement'
 import { SourceControlAiActionRecipeDefaults } from './SourceControlAiActionRecipeDefaults'
@@ -28,6 +37,58 @@ afterEach(() => {
   resetHostStructuredAgentsForTests()
   setLocalRuntimeCapabilitiesForTests(null)
 })
+describe('saved chat-or-CLI pick', () => {
+  it('stays bound to its agent through reads, inheritance, Customize, agent changes and saves', () => {
+    const base = useAppStore.getState().settings!
+    const actions = { fixChecks: { agentId: 'codex' as const, surface: 'terminal' as const } }
+    const settings = { ...base, sourceControlAi: { ...base.sourceControlAi!, actions } }
+    const resolve = (sourceControlAi: RepoSourceControlAiOverrides) =>
+      resolveSourceControlActionRecipe({
+        settings,
+        repo: { sourceControlAi },
+        actionId: 'fixChecks'
+      }).surface
+    expect(resolve({})).toBe('terminal')
+    // A repo on its own agent never inherits the global agent's pick.
+    expect(resolve({ actionOverrides: { fixChecks: { agentId: 'claude' } } })).toBeUndefined()
+
+    const customized = withRepoAiActionMode({}, settings, 'fixChecks', 'override')
+    expect(customized.actionOverrides?.fixChecks?.surface).toBe('terminal')
+    const repoSurface = (agent: 'codex' | 'claude') =>
+      withRepoAiActionAgent(customized, settings, 'fixChecks', agent).actionOverrides?.fixChecks
+        ?.surface
+    expect([repoSurface('codex'), repoSurface('claude')]).toEqual(['terminal', undefined])
+    // Changing the agent (or choosing "Use default agent") drops it even with no saved model.
+    const globalSurface = (agent: 'codex' | 'claude' | null) =>
+      setSourceControlActionAgentDefault(actions, 'fixChecks', agent).fixChecks?.surface
+    expect([globalSurface('codex'), globalSurface('claude'), globalSurface(null)]).toEqual([
+      'terminal',
+      undefined,
+      undefined
+    ])
+
+    const recipe = { agentId: 'codex' as const, commandInputTemplate: '{basePrompt}' }
+    const saved = saveSourceControlActionRecipe({
+      target: { type: 'repo', repoId: 'repo-1' },
+      settings,
+      repo: { sourceControlAi: {} },
+      actionId: 'fixChecks',
+      recipe: { ...recipe, surface: 'terminal' }
+    })
+    const savedRepoAi = 'update' in saved ? saved.update.sourceControlAi : null
+    expect(savedRepoAi?.actionOverrides?.fixChecks?.surface).toBe('terminal')
+    const matches = (surface: 'chat' | 'terminal') =>
+      sourceControlActionRecipeMatchesTarget({
+        actionId: 'fixChecks',
+        target: { type: 'repo', repoId: 'repo-1' },
+        recipe: { ...recipe, surface },
+        settings,
+        repo: { sourceControlAi: savedRepoAi ?? undefined }
+      })
+    expect([matches('terminal'), matches('chat')]).toEqual([true, false])
+  })
+})
+
 describe('RepositorySourceControlAiEnablement', () => {
   it('describes repo enablement as Source Control AI action visibility', () => {
     const markup = renderToStaticMarkup(

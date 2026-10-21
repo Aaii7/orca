@@ -8,9 +8,13 @@ import type { SourceControlAiWriteTarget } from '../../../../shared/source-contr
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AgentLaunchChoice } from '@/lib/agent-menu-selection'
 import { buildSourceControlAgentDeliveryPlan } from './buildSourceControlAgentDeliveryPlan'
 import type { SourceControlAgentActionDeliveryPlanState } from './SourceControlAgentActionDialogForm'
-import { runSourceControlAgentActionStart } from './runSourceControlAgentActionStart'
+import {
+  runSourceControlAgentActionStart,
+  type RunSourceControlAgentActionStartArgs
+} from './runSourceControlAgentActionStart'
 import { buildSourceControlAgentConnectionErrorPlan } from './source-control-agent-action-dialog-support'
 
 type UseSourceControlAgentActionStartArgs = {
@@ -36,15 +40,11 @@ type UseSourceControlAgentActionStartArgs = {
   isRemote?: boolean
   launchSource: LaunchSource
   connectionUnavailable: boolean
-  refreshDetectedAgents: () => Promise<TuiAgent[]>
-  onStart?: (args: {
-    agent: TuiAgent
-    commandInput: string
-    /** Omitted when CLI arguments do not apply, so the launch resolves the global setting. */
-    agentArgs?: string
-    /** The action's saved model and effort, on either route. */
-    sessionOptions?: Readonly<Record<string, string>>
-  }) => boolean | Promise<boolean>
+  /** The dialog's one host observation; Start is gated on it having settled. */
+  detectedAgents: TuiAgent[]
+  /** The picker's choice as rendered when Start was pressed, captured before any await. */
+  launchChoice?: AgentLaunchChoice
+  onStart?: RunSourceControlAgentActionStartArgs['onStart']
   onSaveAgentDefault?: (
     target: SourceControlAiWriteTarget,
     actionId: SourceControlLaunchActionId,
@@ -91,7 +91,8 @@ export function useSourceControlAgentActionStart({
   isRemote,
   launchSource,
   connectionUnavailable,
-  refreshDetectedAgents,
+  detectedAgents,
+  launchChoice,
   onStart,
   onSaveAgentDefault,
   onLaunchAccepted,
@@ -107,9 +108,8 @@ export function useSourceControlAgentActionStart({
   const resetDeliveryPlan = useCallback(() => setDeliveryPlan({ status: 'idle' }), [])
 
   const buildPlan = useCallback(
-    async (agentsOverride?: TuiAgent[]): Promise<SourceControlAgentActionDeliveryPlanState> => {
-      const currentDetectedAgents = agentsOverride ?? (await refreshDetectedAgents())
-      return buildSourceControlAgentDeliveryPlan({
+    (currentDetectedAgents: TuiAgent[]): SourceControlAgentActionDeliveryPlanState =>
+      buildSourceControlAgentDeliveryPlan({
         selectedAgent,
         commandInput,
         // Why: the check must judge the arguments the launch will really apply.
@@ -118,14 +118,12 @@ export function useSourceControlAgentActionStart({
         connectionUnavailable,
         launchPlatform,
         isRemote
-      })
-    },
+      }),
     [
       agentArgs,
       agentArgsApply,
       commandInput,
       connectionUnavailable,
-      refreshDetectedAgents,
       selectedAgent,
       launchPlatform,
       isRemote
@@ -147,7 +145,7 @@ export function useSourceControlAgentActionStart({
       isStartingRef.current = true
       setIsStarting(true)
       try {
-        const nextPlan = await buildPlan(nextAgents)
+        const nextPlan = buildPlan(nextAgents)
         if (nextPlan.status === 'error') {
           setDeliveryPlan(nextPlan)
           return false
@@ -158,6 +156,7 @@ export function useSourceControlAgentActionStart({
           trimmedCommandInput,
           agentArgs,
           agentArgsApply,
+          launchChoice,
           recipe,
           saveTargetValue: saveLaunchRecipe ? (saveTargetValueOverride ?? saveTargetValue) : 'none',
           actionId,
@@ -189,6 +188,7 @@ export function useSourceControlAgentActionStart({
       agentArgs,
       agentArgsApply,
       buildPlan,
+      launchChoice,
       recipe,
       connectionUnavailable,
       groupId,
@@ -217,11 +217,8 @@ export function useSourceControlAgentActionStart({
     if (!selectedAgent || isStartingRef.current) {
       return
     }
-    // Why: manual starts intentionally re-check the current host, while the
-    // saved-receipt bypass reuses the detection result that unlocked it.
-    const nextAgents = await refreshDetectedAgents()
-    await startWithDetectedAgents({ detectedAgents: nextAgents })
-  }, [refreshDetectedAgents, selectedAgent, startWithDetectedAgents])
+    await startWithDetectedAgents({ detectedAgents })
+  }, [detectedAgents, selectedAgent, startWithDetectedAgents])
 
   return { deliveryPlan, resetDeliveryPlan, isStarting, handleStart, startWithDetectedAgents }
 }

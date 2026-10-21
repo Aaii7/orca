@@ -18,6 +18,7 @@ type NormalizedSourceControlActionRecipe = {
   commandInputTemplate: string
   agentArgs: string
   launchPreferences: string
+  surface: string
 }
 
 type PersistedSourceControlActionRecipe = {
@@ -25,6 +26,7 @@ type PersistedSourceControlActionRecipe = {
   commandInputTemplate?: string | null
   agentArgs?: string | null
   launchPreferences?: SourceControlActionRecipe['launchPreferences']
+  surface?: SourceControlActionRecipe['surface']
 }
 
 function normalizeSourceControlActionRecipeForComparison(
@@ -47,7 +49,8 @@ function normalizeSourceControlActionRecipeForComparison(
           ),
           recipe.launchPreferences.permissionMode ?? null
         ])
-      : ''
+      : '',
+    surface: recipe?.surface ?? ''
   }
 }
 
@@ -59,7 +62,8 @@ function sourceControlActionRecipesMatch(
     left.agentId === right.agentId &&
     left.commandInputTemplate === right.commandInputTemplate &&
     left.agentArgs === right.agentArgs &&
-    left.launchPreferences === right.launchPreferences
+    left.launchPreferences === right.launchPreferences &&
+    left.surface === right.surface
   )
 }
 

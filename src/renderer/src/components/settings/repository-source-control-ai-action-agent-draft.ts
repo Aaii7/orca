@@ -22,12 +22,14 @@ export function withRepoAiActionAgent(
 ): RepoSourceControlAiOverrides {
   const currentRecipe =
     base.actionOverrides?.[actionId] ?? readCompleteRecipeForDraft(base, settings, actionId)
-  // A model and permission mode are one agent's choices; neither survives a change of agent.
-  const { launchPreferences, ...rest } = currentRecipe
+  // A model, permission mode and chat-or-CLI pick are one agent's choices; none survives a change.
+  const { launchPreferences, surface, ...rest } = currentRecipe
+  const sameAgent = currentRecipe.agentId === agentId
   return normalizeRepoAiDraft(
     setActionOverride(base, actionId, {
       ...rest,
-      ...(launchPreferences && currentRecipe.agentId === agentId ? { launchPreferences } : {}),
+      ...(launchPreferences && sameAgent ? { launchPreferences } : {}),
+      ...(surface && sameAgent ? { surface } : {}),
       agentId
     })
   )

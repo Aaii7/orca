@@ -337,4 +337,50 @@ describe('startFixChecksAgent', () => {
 
     expect(mocks.focusTerminalTabSurface).not.toHaveBeenCalled()
   })
+
+  // Why: a saved chat stays implicit so a host that stops running chats falls back to a terminal.
+  it('replays a saved terminal explicitly and leaves a saved chat to the settings route', async () => {
+    mocks.readSourceControlLaunchRecipeAgentId.mockReturnValue('codex')
+    const { startFixChecksAgent } = await import('./fix-checks-agent-launch')
+    const launch = (worktreeId: string | null) =>
+      startFixChecksAgent({
+        repoId: 'repo-1',
+        worktreeId,
+        basePrompt: 'Fix checks',
+        launchSource: 'task_page',
+        item: {
+          id: 'pr-7',
+          type: 'pr',
+          number: 7,
+          title: 'PR',
+          state: 'open',
+          url: 'https://example.test/pr/7',
+          labels: [],
+          updatedAt: '',
+          author: null
+        },
+        openModalFallback: () => {}
+      })
+    const saved = (surface: 'chat' | 'terminal') =>
+      mocks.resolveSourceControlActionRecipe.mockReturnValue({
+        agentId: 'codex',
+        commandInputTemplate: '{basePrompt}',
+        surface
+      })
+
+    saved('terminal')
+    await expect(launch('wt-1')).resolves.toBe(true)
+    await expect(launch(null)).resolves.toBe(true)
+    saved('chat')
+    await expect(launch('wt-1')).resolves.toBe(true)
+    await expect(launch(null)).resolves.toBe(true)
+
+    expect(mocks.launchAgentInNewTab.mock.calls.map(([args]) => args.requestedSurface)).toEqual([
+      'terminal',
+      undefined
+    ])
+    expect(
+      mocks.launchWorkItemDirect.mock.calls.map(([args]) => args.launchChoice?.requestedSurface)
+    ).toEqual(['terminal', undefined])
+  })
 })

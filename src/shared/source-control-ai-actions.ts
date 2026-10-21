@@ -34,12 +34,17 @@ export type SourceControlActionLaunchPreferences = {
   permissionMode?: AgentChatPermissionMode
 }
 
+/** A deliberate pick between the agent's chat and its CLI in a terminal. */
+export type SourceControlActionSurface = 'chat' | 'terminal'
+
 export type SourceControlActionRecipe = {
   agentId?: TuiAgent | CustomAgentId | null
   commandInputTemplate?: string
   agentArgs?: string
   /** Only the bound agent’s chat receives these values. */
   launchPreferences?: SourceControlActionLaunchPreferences
+  /** Bound to `agentId` like `launchPreferences`; absent follows the agent's settings route. */
+  surface?: SourceControlActionSurface
 }
 
 export type SourceControlAiActionDefaults = Partial<Record<AiActionId, SourceControlActionRecipe>>
@@ -147,6 +152,9 @@ export function normalizeSourceControlActionRecipe(
   if (launchPreferences) {
     normalized.launchPreferences = launchPreferences
   }
+  if (value.surface === 'chat' || value.surface === 'terminal') {
+    normalized.surface = value.surface
+  }
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
@@ -218,7 +226,8 @@ export function readSourceControlActionDefault(
       ? { commandInputTemplate: value.commandInputTemplate.trim() }
       : {}),
     ...(typeof value?.agentArgs === 'string' ? { agentArgs: value.agentArgs.trim() } : {}),
-    ...(value?.launchPreferences ? { launchPreferences: value.launchPreferences } : {})
+    ...(value?.launchPreferences ? { launchPreferences: value.launchPreferences } : {}),
+    ...(value?.surface ? { surface: value.surface } : {})
   }
 }
 
@@ -252,11 +261,11 @@ export function setSourceControlActionAgentDefault(
   agentId: TuiAgent | CustomAgentId | null
 ): SourceControlAiActionDefaults {
   const current = defaults?.[actionId]
-  if (current?.agentId === agentId || !current?.launchPreferences) {
+  if (!current || current.agentId === agentId || (!current.launchPreferences && !current.surface)) {
     return setSourceControlActionDefault(defaults, actionId, { agentId })
   }
-  // A model id and permission mode name one agent's choices, so they do not survive a change of agent.
-  const { launchPreferences: _previousAgentModel, ...rest } = current
+  // A model, permission mode and chat-or-CLI pick name one agent's choices; none survives a change.
+  const { launchPreferences: _previousAgentModel, surface: _previousSurface, ...rest } = current
   return { ...defaults, [actionId]: { ...rest, agentId } }
 }
 

@@ -4,6 +4,7 @@ import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AgentLaunchChoice } from '@/lib/agent-menu-selection'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
 import type {
   SourceControlActionRecipe,
@@ -16,12 +17,14 @@ import { sourceControlActionRecipeMatchesTarget } from './source-control-action-
 import { resolveSourceControlAgentSaveTarget } from './source-control-agent-action-dialog-support'
 import { resolveSourceControlActionSessionOptions } from '../../../../shared/source-control-action-launch-preferences'
 
-type RunSourceControlAgentActionStartArgs = {
+export type RunSourceControlAgentActionStartArgs = {
   selectedAgent: TuiAgent
   trimmedCommandInput: string
   agentArgs: string
   /** False when the launch would be structured native chat, which reads no CLI arguments. */
   agentArgsApply: boolean
+  /** The picker's choice: a deliberate surface stays explicit, a saved replay requests terminal only. */
+  launchChoice?: AgentLaunchChoice
   recipe: SourceControlActionRecipe
   saveTargetValue: string
   actionId: SourceControlLaunchActionId
@@ -40,6 +43,7 @@ type RunSourceControlAgentActionStartArgs = {
     agentArgs?: string
     /** The action's saved model and effort, on either route. */
     sessionOptions?: Readonly<Record<string, string>>
+    launchChoice?: AgentLaunchChoice
   }) => boolean | Promise<boolean>
   onSaveAgentDefault?: (
     target: SourceControlAiWriteTarget,
@@ -64,6 +68,7 @@ export async function runSourceControlAgentActionStart({
   trimmedCommandInput,
   agentArgs,
   agentArgsApply,
+  launchChoice,
   recipe,
   saveTargetValue,
   actionId,
@@ -102,7 +107,8 @@ export async function runSourceControlAgentActionStart({
       agent: selectedAgent,
       commandInput: trimmedCommandInput,
       agentArgs: launchAgentArgs,
-      ...(sessionOptions ? { sessionOptions } : {})
+      ...(sessionOptions ? { sessionOptions } : {}),
+      ...(launchChoice ? { launchChoice } : {})
     })
     if (launched) {
       notifyLaunchAccepted()
@@ -116,6 +122,8 @@ export async function runSourceControlAgentActionStart({
       prompt: trimmedCommandInput,
       agentArgs: launchAgentArgs,
       ...(sessionOptions ? { sessionOptions } : {}),
+      requestedSurface: launchChoice?.requestedSurface,
+      selectedExecutionHostId: launchChoice?.executionHostId,
       promptDelivery,
       launchPlatform,
       launchSource

@@ -1,51 +1,34 @@
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { getDefaultSettings } from '../../../../shared/constants'
-const mocks = vi.hoisted(
-  (): { settings: GlobalSettings | null; agents: ReturnType<typeof vi.fn> } => ({
-    settings: null,
-    agents: vi.fn().mockResolvedValue(['claude', 'codex'])
-  })
-)
-vi.mock('@/store', () => ({
-  useAppStore: Object.assign(
-    (select: (state: unknown) => unknown) => select({ settings: mocks.settings }),
-    { getState: () => ({ settings: mocks.settings, ensureDetectedAgents: mocks.agents }) }
-  )
-}))
-vi.mock('@/store/selectors', () => ({ useRepoById: () => null }))
-vi.mock('@/runtime/local-runtime-capabilities', () => ({
-  ensureLocalRuntimeCapabilities: async () => [],
-  readLocalRuntimeCapabilitiesOrUnknown: () => []
-}))
-vi.mock('./source-control-launch-agent-args-applicability', () => ({
-  sourceControlLaunchAppliesAgentArgs: () => false
-}))
-vi.mock('./useSavedSourceControlAgentActionAutoStart', () => ({
-  useSavedSourceControlAgentActionAutoStart: () => ({ autoLaunchPending: false })
-}))
-vi.mock('./useSourceControlAgentActionStart', () => ({
-  useSourceControlAgentActionStart: () => ({
-    deliveryPlan: { status: 'idle' },
-    resetDeliveryPlan: () => {},
-    isStarting: false,
-    handleStart: async () => {},
-    startWithDetectedAgents: async () => true
-  })
-}))
+import {
+  STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY as CLIENT,
+  STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY as CHAT
+} from '../../../../shared/protocol-version'
+import { useAppStore } from '@/store'
+import { setLocalRuntimeCapabilitiesForTests } from '@/runtime/local-runtime-capabilities'
 import { useSourceControlAgentActionDialog } from './useSourceControlAgentActionDialog'
-afterEach(cleanup)
-it('keeps a default recipe and dormant choice through display changes, then records an actual edit', async () => {
-  mocks.settings = { ...getDefaultSettings('/tmp/pr-30449'), defaultTuiAgent: 'codex' }
-  const launchPreferences = {
-    agentId: 'codex' as const,
-    model: 'chosen',
-    options: { effort: 'high' }
-  }
-  mocks.settings.sourceControlAi!.actions!.resolveConflicts = { agentId: null, launchPreferences }
-  const { result, rerender } = renderHook(() =>
+
+const initialState = useAppStore.getState()
+afterEach(() => {
+  cleanup()
+  useAppStore.setState(initialState, true)
+  setLocalRuntimeCapabilitiesForTests(null)
+})
+
+function renderDialog(chat: boolean) {
+  const settings = { ...getDefaultSettings('/tmp/pr-3'), defaultTuiAgent: 'claude' as const }
+  const launchPreferences = { agentId: 'codex' as const, model: 'chosen' }
+  settings.sourceControlAi!.actions = { resolveConflicts: { agentId: null, launchPreferences } }
+  useAppStore.setState({
+    settings: { ...settings, experimentalNativeChat: chat },
+    detectedAgentIds: ['claude', 'codex']
+  })
+  setLocalRuntimeCapabilitiesForTests([CHAT, CLIENT])
+  const onStart = vi.fn().mockResolvedValue(true)
+  const onSaveAgentDefault = vi.fn()
+  const view = renderHook(() =>
     useSourceControlAgentActionDialog({
       open: true,
       onOpenChange: () => {},
@@ -54,24 +37,58 @@ it('keeps a default recipe and dormant choice through display changes, then reco
       description: '',
       baseCommandInput: 'fix',
       launchSource: 'source_control_recovery',
-      savedAgentId: null
+      savedAgentId: null,
+      onStart,
+      onSaveAgentDefault
     })
   )
-  await waitFor(() => expect(result.current.detecting).toBe(false))
-  expect(result.current.selectedAgent).toBe('codex')
-  act(() => result.current.onCommandTemplateChange('{basePrompt} edited'))
-  mocks.settings = { ...mocks.settings, defaultTuiAgent: 'claude' }
-  rerender()
-  await waitFor(() => expect(result.current.detecting).toBe(false))
+  return { ...view, onStart, onSaveAgentDefault, launchPreferences }
+}
+
+it('starts and saves a live pick from the unified picker, keeping the agent-bound model', async () => {
+  const { result, onStart, onSaveAgentDefault, launchPreferences } = renderDialog(true)
+  await waitFor(() => expect(result.current.canStart).toBe(true))
+  // An untouched default recipe stays the default and saves no surface of its own.
   expect(result.current.selectedAgent).toBe('claude')
-  expect(result.current.recipe).toMatchObject({
-    agentId: null,
-    launchPreferences,
-    commandInputTemplate: '{basePrompt} edited'
-  })
-  act(() => result.current.onSelectedAgentChange('codex'))
-  expect(result.current.recipe).toMatchObject({ agentId: 'codex', launchPreferences })
-  act(() => result.current.onSelectedAgentChange('claude'))
-  expect(result.current.recipe.agentId).toBe('claude')
+  expect(result.current.recipe).toMatchObject({ agentId: null, launchPreferences })
+
+  act(() => result.current.surfaceRows.onPick('codex', 'terminal'))
+  expect(result.current.recipe).toMatchObject({ agentId: 'codex', surface: 'terminal' })
+  expect(result.current.recipe.launchPreferences).toEqual(launchPreferences)
+  expect(result.current.surfaceRows.selection.cli).toBe(true)
+  await act(() => result.current.handleStart())
+
+  expect(onStart).toHaveBeenCalledWith(
+    expect.objectContaining({
+      agent: 'codex',
+      launchChoice: expect.objectContaining({
+        route: 'terminal-tui',
+        requestedSurface: 'terminal'
+      })
+    })
+  )
+  expect(onSaveAgentDefault).toHaveBeenCalledWith(
+    { type: 'global' },
+    'resolveConflicts',
+    expect.objectContaining({ agentId: 'codex', surface: 'terminal' })
+  )
+
+  act(() => result.current.surfaceRows.onPick('claude', 'chat'))
+  expect(result.current.recipe).toMatchObject({ agentId: 'claude', surface: 'chat' })
   expect(result.current.recipe.launchPreferences).toBeUndefined()
+})
+
+it('saves no surface for a pick made when the picker offers no chats', async () => {
+  const { result, onStart, onSaveAgentDefault } = renderDialog(false)
+  await waitFor(() => expect(result.current.canStart).toBe(true))
+
+  act(() => result.current.surfaceRows.onPick('codex', 'terminal'))
+  await act(() => result.current.handleStart())
+
+  expect(onStart).toHaveBeenCalledWith(
+    expect.objectContaining({ launchChoice: expect.objectContaining({ route: 'terminal-tui' }) })
+  )
+  const savedRecipe = onSaveAgentDefault.mock.calls[0]?.[2]
+  expect(savedRecipe).toMatchObject({ agentId: 'codex' })
+  expect(savedRecipe).not.toHaveProperty('surface')
 })
