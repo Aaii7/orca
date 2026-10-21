@@ -217,7 +217,7 @@ describe('RepositorySourceControlAiActionRows', () => {
       const actionDirtyById = Object.fromEntries(
         SOURCE_CONTROL_ACTION_IDS.map((actionId) => [actionId, actionId === 'fixCommitFailure'])
       ) as Record<SourceControlActionId, boolean>
-      const source = {
+      const source: SourceControlAiSettings = {
         enabled: true,
         agentId: null,
         selectedModelByAgent: {},
@@ -225,7 +225,7 @@ describe('RepositorySourceControlAiActionRows', () => {
         customAgentCommand: '',
         instructionsByOperation: {},
         actions: { fixCommitFailure: { agentId: null, agentArgs: '--global' } }
-      } as SourceControlAiSettings
+      }
 
       const markup = renderToStaticMarkup(
         React.createElement(RepositorySourceControlAiActionRows, {
