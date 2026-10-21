@@ -100,7 +100,7 @@ export function runNativeChatSplitTarget(
     closePane()
     return false
   }
-  // Closes only a pane no tab ever reached; a chat or declined terminal keeps it.
+  // Settlement cleanup preserves any pane that currently contains a tab.
   void result.structuredSettlement?.then(closePane, closePane)
   return true
 }
