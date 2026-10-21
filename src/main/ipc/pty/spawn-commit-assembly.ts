@@ -115,6 +115,12 @@ export type PtySpawnCommitInput<Reply extends PtySpawnResult> = {
 }
 
 /** The one commit for a freshly started process, run inside the OpenCode prompt-intent wrapper. */
+export function commitPtySpawn<Reply extends PtySpawnResult>(
+  input: PtySpawnCommitInput<Reply> & { earlyExit: 'throw' }
+): Promise<Reply | Awaited<ReturnType<typeof commitAdoptedAgentSession>>>
+export function commitPtySpawn<Reply extends PtySpawnResult>(
+  input: PtySpawnCommitInput<Reply>
+): Promise<Reply | PtySpawnResult>
 export async function commitPtySpawn<Reply extends PtySpawnResult>(
   input: PtySpawnCommitInput<Reply>
 ): Promise<Reply | PtySpawnResult> {
@@ -215,7 +221,7 @@ function commitAdoptedAgentSession<Reply extends PtySpawnResult>(
   input: PtySpawnCommitInput<Reply>,
   adopted: AgentSessionClaimedSpawnResult,
   providerReattachLaunchIdentity: ReturnType<typeof admitProviderReattachLaunchIdentity>
-): PtySpawnResult | Promise<never> {
+): Pick<PtySpawnResult, 'id' | 'incarnationId' | 'agentSessionEnsure'> | Promise<never> {
   const { state } = input
   const { result } = state
   const runtime = state.deps.runtime
