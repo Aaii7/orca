@@ -24,7 +24,7 @@ function harness(
   threadGoal?: NativeChatStructuredComposerTransport['threadGoal'],
   onSubmitted?: () => void
 ) {
-  const structuredTransport = {
+  const structuredTransport: NativeChatStructuredComposerTransport = {
     capturePresentation: () => () => true,
     send: vi.fn(() => true),
     dispatchCommand: (text: string) =>
@@ -36,12 +36,18 @@ function harness(
         conversationCommands: ['clear', 'compact'],
         runConversationCommand: async () => ({ accepted: true, error: null })
       }),
+    optionsSurface: {
+      getSnapshot: () => [],
+      setOption: vi.fn(),
+      invokeAction: vi.fn(),
+      subscribe: () => () => {}
+    },
     optionSnapshot: [],
     onError: vi.fn(),
     runtime: 'local',
     sessionId: 'session-test',
     runtimeEnvironmentId: null
-  } as unknown as NativeChatStructuredComposerTransport
+  }
   if (threadGoal) {
     structuredTransport.threadGoal = threadGoal
   }
