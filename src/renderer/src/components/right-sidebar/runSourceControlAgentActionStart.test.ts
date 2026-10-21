@@ -26,6 +26,7 @@ import { runSourceControlAgentActionStart } from './runSourceControlAgentActionS
 import { getDefaultSettings } from '../../../../shared/constants'
 import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
+import { saveSourceControlAiActionRecipeForTarget } from './source-control/ai/recipe-persistence'
 
 function buildArgs(
   overrides: Partial<Parameters<typeof runSourceControlAgentActionStart>[0]> = {}
@@ -356,15 +357,29 @@ describe('runSourceControlAgentActionStart', () => {
     expect(onLaunchAborted).not.toHaveBeenCalled()
   })
 
-  // Why: a rejected recipe save after acceptance would otherwise strand the caller with
-  // neither onLaunched nor onLaunchAborted, permanently disabling the action.
-  it('completes the launch when saving the agent default rejects', async () => {
+  // Recipe persistence can fail while prompt delivery succeeds; report each outcome independently.
+  it('completes the launch and reports a failed repository recipe write', async () => {
     const onLaunchAborted = vi.fn()
     const originalConsole = console
     const consoleError = vi.fn()
     vi.stubGlobal('console', { ...originalConsole, error: consoleError })
-    const saveError = new Error('settings not loaded')
-    mocks.onSaveAgentDefault.mockRejectedValueOnce(saveError)
+    const settings = getDefaultSettings('/tmp')
+    const updateRepo = vi.fn().mockResolvedValue(false)
+    const onSaveAgentDefault = vi.fn(
+      (
+        ...[target, actionId, recipe]: Parameters<
+          NonNullable<Parameters<typeof runSourceControlAgentActionStart>[0]['onSaveAgentDefault']>
+        >
+      ) =>
+        saveSourceControlAiActionRecipeForTarget({
+          getStoreState: () => ({ settings, repos: [] }),
+          updateSettings: vi.fn(),
+          updateRepo,
+          target,
+          actionId,
+          recipe
+        })
+    )
     mocks.launchAgentInNewTab.mockReturnValue({
       surface: { kind: 'local-terminal', tabId: 'tab-1' },
       startupPlan: {} as never,
@@ -374,15 +389,26 @@ describe('runSourceControlAgentActionStart', () => {
 
     try {
       await expect(
-        runSourceControlAgentActionStart(buildArgs({ saveTargetValue: 'global', onLaunchAborted }))
+        runSourceControlAgentActionStart(
+          buildArgs({
+            saveTargetValue: 'repo',
+            repoId: 'repo-1',
+            settings,
+            onSaveAgentDefault,
+            onLaunchAborted
+          })
+        )
       ).resolves.toBe(true)
 
-      expect(mocks.onSaveAgentDefault).toHaveBeenCalledTimes(1)
+      expect(updateRepo).toHaveBeenCalledOnce()
       expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
       expect(mocks.onClose).toHaveBeenCalledTimes(1)
       expect(onLaunchAborted).not.toHaveBeenCalled()
       await vi.waitFor(() => {
-        expect(consoleError).toHaveBeenCalledWith('onSaveAgentDefault failed', saveError)
+        expect(consoleError).toHaveBeenCalledWith(
+          'onSaveAgentDefault failed',
+          new Error('Could not save the Source Control AI action.')
+        )
         expect(mocks.toastError).toHaveBeenCalledWith(
           'Could not save this action. Try saving it again in Settings.'
         )

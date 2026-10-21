@@ -54,6 +54,7 @@ export function useSourceControlAi({
   commitError,
   pushRecoveryPrompt,
   updateSettings,
+  updateSettingsOrThrow,
   updateRepo,
   openSettingsTarget,
   openSettingsPage,
@@ -109,21 +110,17 @@ export function useSourceControlAi({
 
   const getLaunchActionRecipe = useCallback(
     (actionId: SourceControlLaunchActionId): SourceControlActionRecipe =>
-      resolveSourceControlActionRecipe({
-        settings,
-        repo: activeRepo,
-        actionId
-      }),
+      resolveSourceControlActionRecipe({ settings, repo: activeRepo, actionId }),
     [activeRepo, settings]
   )
   const saveActionRecipeForTarget = useCallback(
-    async (
+    (
       target: SourceControlAiWriteTarget,
       actionId: SourceControlTextActionId | SourceControlLaunchActionId,
       recipe: SourceControlActionRecipe,
       customAgentCommand?: string
-    ): Promise<void> => {
-      await saveSourceControlAiActionRecipeForTarget({
+    ): Promise<void> =>
+      saveSourceControlAiActionRecipeForTarget({
         getStoreState,
         updateSettings,
         updateRepo,
@@ -131,19 +128,24 @@ export function useSourceControlAi({
         actionId,
         recipe,
         customAgentCommand
-      })
-    },
+      }),
     [getStoreState, updateRepo, updateSettings]
   )
   const saveLaunchActionDefault = useCallback(
-    async (
+    (
       target: SourceControlAiWriteTarget,
       actionId: SourceControlLaunchActionId,
       recipe: SourceControlActionRecipe
-    ): Promise<void> => {
-      await saveActionRecipeForTarget(target, actionId, recipe)
-    },
-    [saveActionRecipeForTarget]
+    ): Promise<void> =>
+      saveSourceControlAiActionRecipeForTarget({
+        getStoreState,
+        updateSettings: updateSettingsOrThrow,
+        updateRepo,
+        target,
+        actionId,
+        recipe
+      }),
+    [getStoreState, updateRepo, updateSettingsOrThrow]
   )
 
   const openSourceControlAiSettings = useCallback((): void => {
@@ -242,32 +244,30 @@ export function useSourceControlAi({
   })
 
   const handleSaveCommitMessageGenerationDefaults = useCallback(
-    async (
+    (
       target: SourceControlAiWriteTarget,
       params: ResolvedSourceControlAiGenerationParams
-    ): Promise<void> => {
-      await saveSourceControlTextGenerationDefaults({
+    ): Promise<void> =>
+      saveSourceControlTextGenerationDefaults({
         saveActionRecipeForTarget,
         target,
         actionId: 'commitMessage',
         params
-      })
-    },
+      }),
     [saveActionRecipeForTarget]
   )
 
   const handleSavePullRequestGenerationDefaults = useCallback(
-    async (
+    (
       target: SourceControlAiWriteTarget,
       params: ResolvedSourceControlAiGenerationParams
-    ): Promise<void> => {
-      await saveSourceControlTextGenerationDefaults({
+    ): Promise<void> =>
+      saveSourceControlTextGenerationDefaults({
         saveActionRecipeForTarget,
         target,
         actionId: 'pullRequest',
         params
-      })
-    },
+      }),
     [saveActionRecipeForTarget]
   )
 
