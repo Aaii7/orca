@@ -18,10 +18,12 @@ import {
   RELAY_HOST_CAPABILITY_IDLE_REGIONAL_REHOME,
   RELAY_PROTOCOL_LIMITS,
   RELAY_CLOSE_CODE,
+  RELAY_PHONE_CLOSE_REASON,
   type IdleRegionalRehomeCommit,
   type IdleRegionalRehomeDeferReason,
   type IdleRegionalRehomeResult,
   type RelayHostCloseReason,
+  type RelayPhoneCloseReason,
   type RelayRegion
 } from '@orca-cloud/relay-contract'
 import nacl from 'tweetnacl'
@@ -46,6 +48,7 @@ import {
   PostProofCloseLog,
   type PostProofCloseCause
 } from './post-proof-close-log.js'
+import { describeRelayFailure, relayErrorSlug } from './relay-error-redaction.js'
 import { relayHostLogDigest } from './relay-host-log-digest.js'
 import type { RelayTokenClaims } from './relay-token-verifier.js'
 import {
@@ -981,7 +984,12 @@ export class HostSessionRegistry {
       this.failReservationBestEffort(reservation)
       if (credentialActivityId) this.releaseActivityBestEffort(identity, credentialActivityId)
       this.recordAttachDeadline(session, reservation)
-      this.rejectClient(socket, RELAY_CLOSE_CODE.HOST_OFFLINE)
+      // OTA phones redial this cell once, quickly: the control is still seated here.
+      this.rejectClient(
+        socket,
+        RELAY_CLOSE_CODE.HOST_OFFLINE,
+        RELAY_PHONE_CLOSE_REASON.HOST_ATTACH_TIMEOUT
+      )
     }, RELAY_PROTOCOL_LIMITS.hostAttachDeadlineMs)
     const pending: PendingConnection = {
       connId,
@@ -2521,11 +2529,7 @@ export class HostSessionRegistry {
           ? String(candidate.reqId)
           : undefined
       })()
-      this.sendControlError(
-        session,
-        reqId,
-        error instanceof Error ? error.message : 'control_operation_failed'
-      )
+      this.sendControlError(session, reqId, controlErrorCode(type, error))
     }
   }
 
@@ -2559,17 +2563,17 @@ export class HostSessionRegistry {
     if (session.socket) send(session.socket, 'control-error', { ...(reqId ? { reqId } : {}), code })
   }
 
-  // hostCloseReason rides the WebSocket close reason, never relay-hello: every
-  // shipped phone parses relay-hello with a strict schema that rejects an
-  // unknown key, and none of them read the close reason at all.
+  // closeReason rides the WebSocket close reason, never relay-hello: every shipped
+  // phone parses relay-hello with a strict schema that rejects an unknown key, and
+  // ignores a close reason it does not know.
   private rejectClient(
     socket: WebSocket,
     code: number,
-    hostCloseReason?: RelayHostCloseReason | null
+    closeReason?: RelayHostCloseReason | RelayPhoneCloseReason | null
   ): void {
     this.observer.recordPhoneRejection?.(code)
     send(socket, 'relay-hello', { ok: false, code })
-    closeRelayWebSocket(socket, code, hostCloseReason ?? 'relay connection rejected')
+    closeRelayWebSocket(socket, code, closeReason ?? 'relay connection rejected')
   }
 
   private releaseControlActivity(session: HostSession): void {
@@ -2632,6 +2636,15 @@ export class HostSessionRegistry {
 }
 
 export type RelayIdentityKey = { userId: string; relayHostId: string }
+
+// Intentional throws are store codes or slugs; anything else could carry the database URL.
+function controlErrorCode(type: string, error: unknown): string {
+  if (error instanceof RelayStoreError) return error.code
+  const slug = relayErrorSlug(error)
+  if (slug) return slug
+  console.warn(`[orca-relay] control ${type} failed: ${describeRelayFailure(error)}`)
+  return isRelayDatabaseTransientError(error) ? 'database_transient' : 'control_operation_failed'
+}
 
 function databaseCause(error: unknown): PhoneDatabaseCause {
   return isRelayDatabaseTransientError(error) ? 'database_transient' : 'error'

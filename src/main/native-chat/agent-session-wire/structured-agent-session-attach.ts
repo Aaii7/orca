@@ -235,6 +235,7 @@ export function reserveRequestFor(input: {
   callerKey: string
   fingerprint: string
   now: number
+  models?: Parameters<AgentSessionRecordStore['reserveOwner']>[0]['models']
 }): Parameters<AgentSessionRecordStore['reserveOwner']>[0] {
   const { params, authority } = input
   return {
@@ -242,7 +243,7 @@ export function reserveRequestFor(input: {
     location: params.location,
     provider: params.provider,
     accountHome: params.accountHome,
-    ...(params.options ? { options: params.options } : {}),
+    ...(params.options ? { options: params.options, models: input.models } : {}),
     ...(params.envelope.expectedRuntimeFence === null && params.surfaceTabId
       ? { surfaceTabId: params.surfaceTabId }
       : {}),
