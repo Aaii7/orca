@@ -2,7 +2,11 @@ import AgentCombobox from '@/components/agent/AgentCombobox'
 import { useAgentMenuObservation } from '@/components/tab-bar/use-new-tab-agent-menu-rows'
 import { useAppStore } from '@/store'
 import { getAgentCatalog } from '@/lib/agent-catalog'
-import { sourceControlRepoAgentRows, savedSurfaceForPick } from '@/lib/source-control-agent-picker'
+import {
+  sourceControlRepoAgentRows,
+  savedSurfaceForPick,
+  sourceControlAgentPickerSelection
+} from '@/lib/source-control-agent-picker'
 import { buildAgentLaunchRouteInput } from '@/lib/agent-launch-route-input'
 import { AGENT_LAUNCH_SURFACE_RUNTIME_CAPABILITY } from '../../../../shared/agent-launch-runtime-capability'
 import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
@@ -34,6 +38,10 @@ export function SourceControlActionAgentPicker(props: {
   })
   const canSaveSurface =
     route.hostCapabilities?.includes(AGENT_LAUNCH_SURFACE_RUNTIME_CAPABILITY) === true
+  const pickerSelection = sourceControlAgentPickerSelection(
+    observation.model,
+    observation.selectionFor(props.agent, props.surface === 'terminal' ? 'terminal' : undefined)
+  )
   return (
     <AgentCombobox
       allowBlankTerminal
@@ -41,7 +49,7 @@ export function SourceControlActionAgentPicker(props: {
         'auto.components.settings.SourceControlAiActionRecipeDefaults.ee0e5c2a48',
         'Use default agent'
       )}
-      disabled={props.disabled}
+      disabled={props.disabled || !pickerSelection.ready}
       allowNarrowTrigger
       triggerClassName="w-full"
       agents={getAgentCatalog()}
@@ -49,10 +57,7 @@ export function SourceControlActionAgentPicker(props: {
       onValueChange={(agent) => props.onPick(agent, {})}
       surfaceRows={{
         model: observation.model,
-        selection: observation.selectionFor(
-          props.agent,
-          props.surface === 'terminal' ? 'terminal' : undefined
-        ),
+        selection: pickerSelection,
         contextKey: observation.contextKey,
         surface: props.surface,
         onPick: (agent, surface) =>

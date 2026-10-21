@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, cleanup, fireEvent } from '@testing-library/react'
 import './settings-persistence-test-fixture'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -23,6 +23,7 @@ import { withRepoAiActionAgent } from './repository-source-control-ai-action-age
 import { resolveSourceControlActionRecipe } from '../../../../shared/source-control-ai-operation-policy'
 import { saveSourceControlActionRecipe } from '../../../../shared/source-control-ai-recipe-save'
 import { sourceControlActionRecipeMatchesTarget } from '../right-sidebar/source-control-action-recipe-match'
+import { SourceControlActionAgentPicker } from './SourceControlActionAgentPicker'
 import { RepositorySourceControlAiActionRows } from './RepositorySourceControlAiActionRows'
 import { RepositorySourceControlAiEnablement } from './RepositorySourceControlAiEnablement'
 import { SourceControlAiActionRecipeDefaults } from './SourceControlAiActionRecipeDefaults'
@@ -32,6 +33,7 @@ import { setLocalRuntimeCapabilitiesForTests } from '@/runtime/local-runtime-cap
 import { resetHostStructuredAgentsForTests } from '@/runtime/host-structured-agents'
 vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: vi.fn() }))
 afterEach(() => {
+  cleanup()
   resetHostStructuredAgentsForTests()
   setLocalRuntimeCapabilitiesForTests(null)
 })
@@ -317,4 +319,32 @@ it('a repository surface-only edit keeps inherited explicit empty arguments and 
     surface: 'chat'
   })
   expect(changedAgent.actionOverrides?.fixChecks?.launchPreferences).toBeUndefined()
+})
+
+it('keeps default and missing-agent editors disabled only until the host inventory settles', async () => {
+  const settings = useAppStore.getState().settings!
+  useAppStore.setState({
+    settings: { ...settings, experimentalNativeChat: false },
+    detectedAgentIds: null,
+    ensureDetectedAgents: vi.fn(() => new Promise(() => {}))
+  })
+  const onPick = vi.fn()
+  const picker = (agent: 'codex' | null) =>
+    React.createElement(
+      TooltipProvider,
+      null,
+      React.createElement(SourceControlActionAgentPicker, { agent, onPick })
+    )
+  const view = render(picker(null))
+  expect(view.getByRole('combobox').hasAttribute('disabled')).toBe(true)
+  view.rerender(picker('codex'))
+  expect(view.getByRole('combobox').hasAttribute('disabled')).toBe(true)
+  await act(async () => useAppStore.setState({ detectedAgentIds: ['claude'] }))
+  expect(view.getByRole('combobox').hasAttribute('disabled')).toBe(false)
+  expect(onPick).not.toHaveBeenCalled()
+  fireEvent.click(view.getByRole('combobox'))
+  const available = view.getAllByRole('option').find((row) => row.textContent?.includes('Claude'))
+  expect(available).toBeDefined()
+  fireEvent.click(available!)
+  expect(onPick).toHaveBeenCalledWith('claude', {})
 })

@@ -160,6 +160,7 @@ export function SourceControlAgentActionDialogForm({
               value={selectedAgent}
               onValueChange={onAgentPick}
               surfaceRows={surfaceRows}
+              disabled={!surfaceRows.selection.ready}
               allowNarrowTrigger
               triggerClassName="w-full"
             />

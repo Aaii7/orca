@@ -1,6 +1,11 @@
 import { useSavedSourceControlActionStart } from '../use-saved-source-control-action-start'
 import { resolveSourceControlActionRecipe } from '../../../../../shared/source-control-ai'
-import { checksPanelReviewStableKey } from '../pr-comments-ai-launch-ack'
+import {
+  checksPanelReviewStableKey,
+  clearPendingPRCommentAiAck,
+  setPendingPRCommentAiAck,
+  type PendingPRCommentAiAckGithubTarget
+} from '../pr-comments-ai-launch-ack'
 import type { ChecksAgentComposerState } from './panel-state-types'
 import type { ChecksPanelAiAcknowledgementState } from './use-checks-panel-ai-acknowledgement'
 import { forgeOwnerHostIdForWorkspace } from '@/runtime/forge-credential-target'
@@ -8,8 +13,6 @@ import { toast } from 'sonner'
 import { buildResolvePullRequestConflictsPrompt } from '../SourceControl'
 import { buildPRCommentsResolutionPrompt } from '../../pr-comments-resolution-prompt'
 import { parseGitHubIssueOrPRLink } from '../../../../../shared/github/links'
-import { clearPendingPRCommentAiAck, setPendingPRCommentAiAck } from '../pr-comments-ai-launch-ack'
-import type { PendingPRCommentAiAckGithubTarget } from '../pr-comments-ai-launch-ack'
 import type { PRCommentGroup } from '../../../../../shared/pr-comment-groups'
 import { translate } from '@/i18n/i18n'
 

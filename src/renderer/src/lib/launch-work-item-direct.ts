@@ -181,7 +181,7 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
     launchChoice: args.launchChoice
   })
   if (!projectContext || preflightPlan?.route !== 'structured-native-chat') {
-    const agentArgsPlan = planAgentCliArgsSuffix(agentArgs, shell)
+    const agentArgsPlan = planAgentCliArgsSuffix(args.agentArgs, shell)
     if (!agentArgsPlan.ok) {
       // Why: direct launches may create a worktree before the agent startup plan
       // is built; reject malformed saved args before touching user workspaces.
@@ -289,7 +289,7 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
       primaryTabId: null,
       beforeOpen: revealWorkspace,
       declinedTerminal: {
-        ...(agentArgs !== undefined ? { agentArgs } : {}),
+        ...(args.agentArgs !== undefined ? { agentArgs: args.agentArgs } : {}),
         sessionOptionsYieldToAgentArgs: args.sessionOptionsYieldToAgentArgs,
         ...(args.launchPlatform ? { launchPlatform: args.launchPlatform } : {}),
         ...(launchSource ? { launchSource } : {})

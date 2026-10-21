@@ -87,6 +87,6 @@ export type WritableRepoSourceControlAiOverrides = {
   customAgentCommand?: string
   modelOverridesByOperation?: Partial<Record<SourceControlAiOperation, SourceControlAiModelChoice>>
   instructionsByOperation?: Partial<Record<SourceControlAiOperation, string>>
-  actionOverrides?: Partial<Record<SourceControlActionId, CompleteSourceControlActionRecipe>>
+  actionOverrides?: RepoSourceControlAiOverrides['actionOverrides']
   prCreationDefaults?: SourceControlAiPrCreationDefaults
 }

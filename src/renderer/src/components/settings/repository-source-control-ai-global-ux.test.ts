@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { normalizeSourceControlAiSettings } from '../../../../shared/source-control-ai'
+import {
+  normalizeRepoSourceControlAiOverrides,
+  normalizeSourceControlAiSettings
+} from '../../../../shared/source-control-ai'
 import type { RepoSourceControlAiOverrides } from '../../../../shared/source-control-ai-types'
 import type { SourceControlAiRepoUpdate } from '../../../../shared/source-control-ai-recipe-save'
 import { useRepositorySourceControlAiGlobalUx } from './repository-source-control-ai-global-ux'
@@ -36,14 +39,24 @@ const withRecipe = (commandInputTemplate: string): RepoSourceControlAiOverrides 
 })
 
 describe('useRepositorySourceControlAiGlobalUx', () => {
-  it('keeps an optimistic immediate field when the persist succeeds', async () => {
+  it('persists an immediate edit without completing untouched sparse sibling recipes', async () => {
+    const actionOverrides = {
+      fixChecks: { agentArgs: null, commandInputTemplate: null, surface: 'terminal' as const },
+      resolveComments: { agentArgs: '' },
+      resolveConflicts: { commandInputTemplate: '{basePrompt}' }
+    }
     const updateRepo = vi.fn().mockResolvedValue(true)
-    const { result } = setup({}, updateRepo)
+    const { result } = setup({ actionOverrides }, updateRepo)
     await act(async () => {
       result.current.updateEnablement(true)
     })
+    expect(updateRepo).toHaveBeenCalledOnce()
+    const payload = updateRepo.mock.calls[0]?.[1].sourceControlAi
+    expect(payload).toEqual({ enabled: true, actionOverrides })
+    expect(
+      normalizeRepoSourceControlAiOverrides(JSON.parse(JSON.stringify(payload)))?.actionOverrides
+    ).toEqual(actionOverrides)
     expect(result.current.displayRepoAi.enabled).toBe(true)
-    expect(updateRepo).toHaveBeenCalledTimes(1)
     expect(result.current.saveError).toBeNull()
   })
 

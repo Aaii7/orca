@@ -7,6 +7,7 @@ import type {
   AgentMenuRowsTarget,
   NewTabAgentMenuModel
 } from '@/components/tab-bar/use-new-tab-agent-menu-rows'
+import type { resolveAgentMenuSelection } from '@/lib/agent-menu-selection'
 import type { AgentLaunchSurface } from '@/lib/agent-session-launch-plan'
 
 /** The workspace a Source Control agent picker lists rows for, and the host whose agents it reads. */
@@ -57,4 +58,19 @@ export function savedSurfaceForPick(
     model.state === 'settled' &&
     model.rows.some((row) => row.agent === agent && row.kind === 'chat')
   return hadChoice ? surface : undefined
+}
+
+/** Editing waits for host facts, not for the saved agent to become launchable. */
+export function sourceControlAgentPickerSelection(
+  model: NewTabAgentMenuModel,
+  selection: ReturnType<typeof resolveAgentMenuSelection>
+): ReturnType<typeof resolveAgentMenuSelection> {
+  return {
+    ...selection,
+    ready:
+      model.state === 'settled' &&
+      (model.detection.detectedIds !== null ||
+        model.detection.detectionFailed ||
+        model.detection.needsServerUpdate)
+  }
 }

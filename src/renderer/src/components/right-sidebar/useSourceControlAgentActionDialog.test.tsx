@@ -110,3 +110,14 @@ it('leaves an untouched saved surface in the draft but omits it when saving to a
   expect(saved).not.toHaveProperty('agentArgs')
   expect(result.current.recipe.surface).toBe('terminal')
 })
+
+it('allows replacing an unavailable saved agent without making it launchable', async () => {
+  const f = renderDialog(false, true, { agentId: 'codex', agentArgs: '' })
+  await act(async () => useAppStore.setState({ detectedAgentIds: ['claude'] }))
+  expect(f.result.current.surfaceRows.selection.ready).toBe(true)
+  expect(f.result.current.canStart).toBe(false)
+  expect(f.result.current.recipe.agentId).toBe('codex')
+  expect(f.onStart).not.toHaveBeenCalled()
+  act(() => f.result.current.surfaceRows.onPick('claude', 'terminal'))
+  await waitFor(() => expect(f.result.current.canStart).toBe(true))
+})

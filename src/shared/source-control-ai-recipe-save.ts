@@ -4,7 +4,6 @@ import {
 } from './source-control-ai'
 import {
   DEFAULT_SOURCE_CONTROL_ACTION_COMMAND_TEMPLATES,
-  SOURCE_CONTROL_ACTION_IDS,
   SOURCE_CONTROL_TEXT_ACTION_IDS,
   type SourceControlActionId,
   type SourceControlActionRecipe
@@ -101,14 +100,7 @@ function normalizeCompleteRecipe(
 function normalizeActionOverrides(
   overrides: RepoSourceControlAiOverrides['actionOverrides']
 ): WritableRepoSourceControlAiOverrides['actionOverrides'] {
-  const normalized: WritableRepoSourceControlAiOverrides['actionOverrides'] = {}
-  for (const actionId of SOURCE_CONTROL_ACTION_IDS) {
-    const recipe = normalizeCompleteRecipe(actionId, overrides?.[actionId])
-    if (recipe) {
-      normalized[actionId] = recipe
-    }
-  }
-  return hasEntries(normalized) ? normalized : undefined
+  return normalizeRepoSourceControlAiOverrides({ actionOverrides: overrides })?.actionOverrides
 }
 
 export function normalizeWritableRepoSourceControlAiOverrides(

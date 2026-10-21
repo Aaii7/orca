@@ -8,6 +8,8 @@ import type { PendingPRCommentAiAck } from '../pr-comments-ai-launch-ack'
 import { clearPendingPRCommentAiAck, takePendingPRCommentAiAck } from '../pr-comments-ai-launch-ack'
 import type { ChecksAgentComposerState } from './panel-state-types'
 import { useChecksPanelAiQueue } from './use-checks-panel-ai-queue'
+import { checksPanelAsyncResultKey } from '../checks-panel-async-result-key'
+import { useChecksPanelReviewData } from './use-checks-panel-review-data'
 import { useChecksPanelAiAcknowledgement } from './use-checks-panel-ai-acknowledgement'
 
 const launch = vi.hoisted(() => vi.fn())
@@ -29,6 +31,10 @@ function deferred<T>() {
   return { promise, resolve }
 }
 function fixture(saved = true) {
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    value: { gh: { onWorkItemMutated: () => () => {} } }
+  })
   const settings = getDefaultSettings('/tmp/pr-31310')
   settings.sourceControlAi!.actions = saved
     ? {
@@ -50,61 +56,97 @@ function fixture(saved = true) {
   const claimed = { current: null as PendingPRCommentAiAck | null }
   const busy = { current: false }
   const accepted = { current: false }
-  const context = { current: 'review::head' }
+  const context = { current: checksPanelAsyncResultKey(repo.id, 'main', 42, null, 'head') }
+  const loading = { current: false }
+  const fetchPRComments = vi.fn().mockResolvedValue([])
+  const setComments = vi.fn()
+  const isCurrentAsyncResult = (key: string) => key === context.current
   const resolveThread = vi.fn().mockResolvedValue(true)
   const composer = vi.fn<(value: ChecksAgentComposerState | null) => void>()
-  const view = renderHook(() => {
-    const ack = useChecksPanelAiAcknowledgement({
-      addPRConversationComment: vi.fn(),
-      addPRReviewCommentReply: vi.fn(),
-      asyncResultKeyRef: context,
-      claimedCommentResolutionRef: claimed,
-      commentsRef: { current: [] },
-      commentsSelectionClearTokenRef: { current: 0 },
-      pendingCommentResolutionRef: pending,
-      resolveReviewThread: resolveThread,
-      setCommentResolutionAckBusyNow: (value) => {
-        busy.current = value
-      },
-      setComments: vi.fn(),
-      setCommentsSelectionClearRequest: vi.fn(),
-      commentResolutionLaunchAcceptedRef: accepted,
-      fetchComments: vi.fn(),
-      fetchGitLabDetails: vi.fn()
-    })
-    return useChecksPanelAiQueue({
-      ...ack,
-      activeConflictReview: null,
-      activeReview: {
-        provider: 'github',
-        number: 42,
-        title: 'Review',
-        state: 'open',
-        url: 'https://github.com/acme/repo/pull/42',
-        status: 'pending',
-        updatedAt: '',
-        mergeable: 'MERGEABLE'
-      },
-      activeWorktree: worktree,
-      activeWorktreeId: worktree.id,
-      activeWorktreePath: worktree.path,
-      activeConnectionId: null,
-      activeSourceControlLaunchPlatform: 'linux',
-      settings,
-      asyncResultKeyRef: context,
-      claimedCommentResolutionRef: claimed,
-      commentResolutionAckBusyRef: busy,
-      commentResolutionLaunchAcceptedRef: accepted,
-      pendingCommentResolutionRef: pending,
-      pr: null,
-      prNumber: 42,
-      repo,
-      resolveCommentsWithAIDisabledReason: undefined,
-      setAgentComposerState: composer,
-      sourceControlAiActionsVisible: true,
-      stateRequestKey: 'review::head'
-    })
-  })
+  const view = renderHook(
+    ({ head }) => {
+      context.current = checksPanelAsyncResultKey(repo.id, 'main', 42, null, head)
+      const data = useChecksPanelReviewData({
+        activeGitLabReview: null,
+        branch: 'main',
+        fetchPRCheckDetails: vi.fn(),
+        fetchPRComments,
+        gitLabProjectRefRef: { current: null },
+        isCurrentAsyncResult,
+        isPanelVisible: true,
+        pr: {
+          number: 42,
+          title: 'Review',
+          state: 'open',
+          url: '',
+          checksStatus: 'pending',
+          updatedAt: '',
+          mergeable: 'MERGEABLE',
+          headSha: head
+        },
+        prCacheKey: repo.id,
+        prNumber: 42,
+        repo,
+        activeWorktree: worktree,
+        setComments,
+        setCommentsError: vi.fn(),
+        setCommentsLoading: (value) => {
+          loading.current = value
+        }
+      })
+      const ack = useChecksPanelAiAcknowledgement({
+        addPRConversationComment: vi.fn(),
+        addPRReviewCommentReply: vi.fn(),
+        asyncResultKeyRef: context,
+        claimedCommentResolutionRef: claimed,
+        commentsRef: { current: [] },
+        commentsSelectionClearTokenRef: { current: 0 },
+        pendingCommentResolutionRef: pending,
+        resolveReviewThread: resolveThread,
+        setCommentResolutionAckBusyNow: (value) => {
+          busy.current = value
+        },
+        setComments,
+        setCommentsSelectionClearRequest: vi.fn(),
+        commentResolutionLaunchAcceptedRef: accepted,
+        fetchComments: data.fetchComments,
+        fetchGitLabDetails: vi.fn()
+      })
+      return useChecksPanelAiQueue({
+        ...ack,
+        activeConflictReview: null,
+        activeReview: {
+          provider: 'github',
+          number: 42,
+          title: 'Review',
+          state: 'open',
+          url: 'https://github.com/acme/repo/pull/42',
+          status: 'pending',
+          updatedAt: '',
+          mergeable: 'MERGEABLE'
+        },
+        activeWorktree: worktree,
+        activeWorktreeId: worktree.id,
+        activeWorktreePath: worktree.path,
+        activeConnectionId: null,
+        activeSourceControlLaunchPlatform: 'linux',
+        settings,
+        asyncResultKeyRef: context,
+        claimedCommentResolutionRef: claimed,
+        commentResolutionAckBusyRef: busy,
+        commentResolutionLaunchAcceptedRef: accepted,
+        pendingCommentResolutionRef: pending,
+        pr: null,
+        prNumber: 42,
+        repo,
+        resolveCommentsWithAIDisabledReason: undefined,
+        setAgentComposerState: composer,
+        sourceControlAiActionsVisible: true,
+        stateRequestKey: context.current
+      })
+    },
+    { initialProps: { head: 'head' } }
+  )
   const groups = [
     {
       kind: 'thread' as const,
@@ -122,7 +164,19 @@ function fixture(saved = true) {
       replies: []
     }
   ]
-  return { ...view, inventory, groups, pending, claimed, busy, context, composer, resolveThread }
+  return {
+    ...view,
+    inventory,
+    groups,
+    pending,
+    claimed,
+    busy,
+    context,
+    composer,
+    resolveThread,
+    loading,
+    fetchPRComments
+  }
 }
 
 it('owns detection single-flight, returns failed delivery to the editor, then consumes its exact review once', async () => {
@@ -181,5 +235,43 @@ it.each([false, true])(
     expect(f.composer.mock.calls[0]?.[0]?.launchContext?.initialRecipe?.agentId).toBe(
       saved ? 'codex' : undefined
     )
+  }
+)
+
+it.each(['before-delivery', 'during-ack'])(
+  'refreshes the current head after original-target acknowledgement (%s)',
+  async (churn) => {
+    const delivery = deferred<{ delivered: boolean; failureNotified: boolean }>()
+    const provider = deferred<boolean>()
+    launch.mockReturnValue({
+      surface: { kind: 'local-terminal', tabId: 'tab-1' },
+      promptDeliveryResult: delivery.promise
+    })
+    const f = fixture()
+    f.resolveThread.mockReturnValueOnce(provider.promise)
+    act(() => f.result.current.handleResolveCommentsWithAI(f.groups))
+    await act(async () => f.inventory.resolve(['codex']))
+    if (churn === 'before-delivery') {
+      await act(async () => f.rerender({ head: 'head-B' }))
+    }
+    await act(async () => delivery.resolve({ delivered: true, failureNotified: false }))
+    expect(f.resolveThread).toHaveBeenCalledOnce()
+    if (churn === 'during-ack') {
+      await act(async () => f.rerender({ head: 'head-B' }))
+    }
+    expect(f.loading.current).toBe(false)
+    await act(async () => provider.resolve(true))
+    await waitFor(() => expect(f.busy.current).toBe(false))
+    expect(f.fetchPRComments.mock.calls.filter((call) => call[2]?.force)).toHaveLength(1)
+    expect(f.loading.current).toBe(false)
+    expect(f.resolveThread).toHaveBeenCalledWith(
+      '/repo',
+      42,
+      'thread-42',
+      true,
+      expect.objectContaining({ repoId: 'repo-1' })
+    )
+    act(() => f.result.current.handleResolveCommentsWithAI(f.groups))
+    await waitFor(() => expect(launch).toHaveBeenCalledTimes(2))
   }
 )

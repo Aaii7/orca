@@ -19,6 +19,7 @@ import { useAgentDetectionTargetForWorktree } from '@/hooks/useAgentDetectionTar
 import { useAgentMenuObservation } from '@/components/tab-bar/use-new-tab-agent-menu-rows'
 import {
   sourceControlRepoAgentRows,
+  sourceControlAgentPickerSelection,
   type SourceControlAgentRows
 } from '@/lib/source-control-agent-picker'
 import { isSourceControlAgentDetectedAndEnabled } from './source-control-agent-action-dialog-support'
@@ -98,8 +99,7 @@ export function useSourceControlActionAgentChoice(args: {
     selectedAgent,
     liveSurface,
     selection,
-    // An agent this host lacks has no answer to wait for, so its trigger stays open to switch.
-    pickerSelection: selectedAgentUnavailable ? { ...selection, ready: true } : selection,
+    pickerSelection: sourceControlAgentPickerSelection(observation.model, selection),
     selectedAgentUnavailable,
     hasEnabledAgents: enabledDetectedAgents.length > 0,
     agentOptions: getAgentCatalog().filter(

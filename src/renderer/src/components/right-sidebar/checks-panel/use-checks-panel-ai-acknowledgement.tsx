@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { mergePRCommentIntoList } from '@/store/github/pr-comment-cache'
 import {
@@ -79,6 +79,9 @@ export function useChecksPanelAiAcknowledgement(model: ChecksPanelAiAcknowledgem
     },
     [fetchComments, fetchGitLabDetails]
   )
+
+  const refreshCommentsRef = useRef(refreshCommentsAfterBulkResolve)
+  refreshCommentsRef.current = refreshCommentsAfterBulkResolve
 
   const resolveSelectedThreadsAfterLaunch = useCallback(
     async (resolution: NonNullable<ChecksAgentComposerState['commentResolution']>) => {
@@ -210,7 +213,7 @@ export function useChecksPanelAiAcknowledgement(model: ChecksPanelAiAcknowledgem
       })
 
       if (isPanelStillOnLaunchReview()) {
-        await refreshCommentsAfterBulkResolve(resolution.provider)
+        await refreshCommentsRef.current(resolution.provider)
       }
 
       // Why: surface the underlying API error when replies were possible but none landed.
@@ -252,7 +255,6 @@ export function useChecksPanelAiAcknowledgement(model: ChecksPanelAiAcknowledgem
       addPRConversationComment,
       addPRReviewCommentReply,
       clearSentCommentSelection,
-      refreshCommentsAfterBulkResolve,
       resolveReviewThread,
       commentsRef,
       setComments,

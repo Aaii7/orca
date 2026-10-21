@@ -1,10 +1,8 @@
 import { SourceControlActionAgentPicker } from './SourceControlActionAgentPicker'
-import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
-import { isCustomAgentId } from '../../../../shared/commit-message-agent-spec'
 import type React from 'react'
 import { Terminal } from 'lucide-react'
 import type { TuiAgent } from '../../../../shared/tui-agent'
-import { CUSTOM_AGENT_ID } from '../../../../shared/commit-message-agent-spec'
+import { CUSTOM_AGENT_ID, isCustomAgentId } from '../../../../shared/commit-message-agent-spec'
 import type {
   RepoSourceControlAiOverrides,
   SourceControlAiSettings
@@ -12,6 +10,7 @@ import type {
 import {
   SOURCE_CONTROL_ACTION_IDS,
   SOURCE_CONTROL_ACTION_LABELS,
+  type SourceControlActionRecipe,
   type SourceControlActionId,
   type SourceControlActionLaunchPreferences
 } from '../../../../shared/source-control-ai-actions'
