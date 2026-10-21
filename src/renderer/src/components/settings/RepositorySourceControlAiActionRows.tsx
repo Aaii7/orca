@@ -1,3 +1,6 @@
+import { SourceControlActionAgentPicker } from './SourceControlActionAgentPicker'
+import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
+import { isCustomAgentId } from '../../../../shared/commit-message-agent-spec'
 import type React from 'react'
 import { Terminal } from 'lucide-react'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -59,7 +62,11 @@ type RepositorySourceControlAiActionRowsProps = {
   source: SourceControlAiSettings
   defaultTuiAgent: TuiAgent | 'blank' | null | undefined
   onActionModeChange: (actionId: SourceControlActionId, mode: string) => void
-  onActionAgentChange: (actionId: SourceControlActionId, value: string) => void
+  onActionAgentChange: (
+    actionId: SourceControlActionId,
+    value: string,
+    choice?: Pick<SourceControlActionRecipe, 'surface'>
+  ) => void
   onActionLaunchPreferencesChange: (
     actionId: SourceControlActionId,
     value: SourceControlActionLaunchPreferences | undefined
@@ -202,45 +209,59 @@ export function RepositorySourceControlAiActionRows({
                     'Agent'
                   )}
                 </Label>
-                <Select
-                  value={actionAgentSelectValue(effectiveAgent)}
-                  onValueChange={(value) => onActionAgentChange(actionId, value)}
-                  disabled={!hasOverride}
-                >
-                  <SelectTrigger size="sm" className="h-8 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={DEFAULT_AGENT_VALUE}>
-                      <span className="flex items-center gap-2">
-                        <Terminal className="size-3.5 text-muted-foreground" />
-                        {translate(
-                          'auto.components.settings.RepositorySourceControlAiActionRows.0ffb081b3a',
-                          'Use default agent'
-                        )}
-                      </span>
-                    </SelectItem>
-                    {SOURCE_CONTROL_TEXT_ACTION_ID_SET.has(actionId) ? (
-                      <SelectItem value={CUSTOM_AGENT_ID}>
+                {isLaunchAction ? (
+                  <SourceControlActionAgentPicker
+                    agent={
+                      effectiveAgent && !isCustomAgentId(effectiveAgent) ? effectiveAgent : null
+                    }
+                    surface={recipe.surface}
+                    repoId={repoId}
+                    disabled={!hasOverride}
+                    onPick={(agent, choice) =>
+                      onActionAgentChange(actionId, agent ?? DEFAULT_AGENT_VALUE, choice)
+                    }
+                  />
+                ) : (
+                  <Select
+                    value={actionAgentSelectValue(effectiveAgent)}
+                    onValueChange={(value) => onActionAgentChange(actionId, value)}
+                    disabled={!hasOverride}
+                  >
+                    <SelectTrigger size="sm" className="h-8 w-full text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DEFAULT_AGENT_VALUE}>
                         <span className="flex items-center gap-2">
                           <Terminal className="size-3.5 text-muted-foreground" />
                           {translate(
-                            'auto.components.settings.RepositorySourceControlAiActionRows.2b2f38652b',
-                            'Custom command'
+                            'auto.components.settings.RepositorySourceControlAiActionRows.0ffb081b3a',
+                            'Use default agent'
                           )}
                         </span>
                       </SelectItem>
-                    ) : null}
-                    {agentOptions.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        <span className="flex items-center gap-2">
-                          <AgentIcon agent={agent.id} size={14} />
-                          {agent.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {SOURCE_CONTROL_TEXT_ACTION_ID_SET.has(actionId) ? (
+                        <SelectItem value={CUSTOM_AGENT_ID}>
+                          <span className="flex items-center gap-2">
+                            <Terminal className="size-3.5 text-muted-foreground" />
+                            {translate(
+                              'auto.components.settings.RepositorySourceControlAiActionRows.2b2f38652b',
+                              'Custom command'
+                            )}
+                          </span>
+                        </SelectItem>
+                      ) : null}
+                      {agentOptions.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          <span className="flex items-center gap-2">
+                            <AgentIcon agent={agent.id} size={14} />
+                            {agent.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {agentWarningText ? (
                   <p className="text-[11px] text-destructive">{agentWarningText}</p>
                 ) : agentSupportText ? (

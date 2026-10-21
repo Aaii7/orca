@@ -19,6 +19,7 @@ import { useSourceControlAgentActionDialog } from './useSourceControlAgentAction
 
 export type SourceControlAgentActionDialogProps = {
   open: boolean
+  initialRecipe?: SourceControlActionRecipe
   onOpenChange: (open: boolean) => void
   actionId: SourceControlLaunchActionId
   title: string
@@ -64,6 +65,12 @@ export type SourceControlAgentActionDialogProps = {
 
 export function SourceControlAgentActionDialog(
   props: SourceControlAgentActionDialogProps
+): React.JSX.Element | null {
+  return props.open ? <SourceControlAgentActionEditor {...props} /> : null
+}
+
+function SourceControlAgentActionEditor(
+  props: SourceControlAgentActionDialogProps
 ): React.JSX.Element {
   const {
     open,
@@ -78,7 +85,6 @@ export function SourceControlAgentActionDialog(
   } = props
   const {
     handleOpenChange,
-    shouldRenderDialog,
     agentScopeNote,
     agentOptions,
     selectedAgent,
@@ -108,50 +114,46 @@ export function SourceControlAgentActionDialog(
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {/* Why: saved receipts auto-start in the background, so the fallback content
-          stays unmounted to avoid flashing a dialog the user already skipped. */}
-      {shouldRenderDialog ? (
-        <DialogContent className="flex max-h-[min(82vh,42rem)] min-w-0 flex-col overflow-hidden sm:max-w-2xl">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="text-sm">{title}</DialogTitle>
-            <DialogDescription className="text-xs">{description}</DialogDescription>
-          </DialogHeader>
-          <SourceControlAgentActionDialogForm
-            actionId={actionId}
-            baseCommandInput={baseCommandInput}
-            agentScopeNote={agentScopeNote}
-            agentOptions={agentOptions}
-            selectedAgent={selectedAgent}
-            hasEnabledAgents={hasEnabledAgents}
-            detecting={detecting}
-            surfaceRows={surfaceRows}
-            statusCopy={statusCopy}
-            agentArgs={agentArgs}
-            agentArgsApply={agentArgsApply}
-            recipe={recipe}
-            commandTemplate={commandTemplate}
-            savedCommandInputTemplate={savedCommandInputTemplate}
-            saveLaunchRecipe={saveLaunchRecipe}
-            saveTargetValue={saveTargetValue}
-            saveTargets={saveTargets}
-            settings={settings}
-            repo={repo}
-            canSaveAgentDefault={Boolean(onSaveAgentDefault)}
-            deliveryPlan={deliveryPlan}
-            canStart={canStart}
-            isStarting={isStarting}
-            startLabel={startLabel}
-            onAgentPick={onAgentPick}
-            onAgentArgsChange={onAgentArgsChange}
-            onCommandTemplateChange={onCommandTemplateChange}
-            onSaveLaunchRecipeChange={onSaveLaunchRecipeChange}
-            onSaveAgentDefaultChange={onSaveAgentDefaultChange}
-            onOpenSettings={onOpenSettings}
-            onCancel={() => handleOpenChange(false)}
-            onStart={() => void handleStart()}
-          />
-        </DialogContent>
-      ) : null}
+      <DialogContent className="flex max-h-[min(82vh,42rem)] min-w-0 flex-col overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="text-sm">{title}</DialogTitle>
+          <DialogDescription className="text-xs">{description}</DialogDescription>
+        </DialogHeader>
+        <SourceControlAgentActionDialogForm
+          actionId={actionId}
+          baseCommandInput={baseCommandInput}
+          agentScopeNote={agentScopeNote}
+          agentOptions={agentOptions}
+          selectedAgent={selectedAgent}
+          hasEnabledAgents={hasEnabledAgents}
+          detecting={detecting}
+          surfaceRows={surfaceRows}
+          statusCopy={statusCopy}
+          agentArgs={agentArgs}
+          agentArgsApply={agentArgsApply}
+          recipe={recipe}
+          commandTemplate={commandTemplate}
+          savedCommandInputTemplate={savedCommandInputTemplate}
+          saveLaunchRecipe={saveLaunchRecipe}
+          saveTargetValue={saveTargetValue}
+          saveTargets={saveTargets}
+          settings={settings}
+          repo={repo}
+          canSaveAgentDefault={Boolean(onSaveAgentDefault)}
+          deliveryPlan={deliveryPlan}
+          canStart={canStart}
+          isStarting={isStarting}
+          startLabel={startLabel}
+          onAgentPick={onAgentPick}
+          onAgentArgsChange={onAgentArgsChange}
+          onCommandTemplateChange={onCommandTemplateChange}
+          onSaveLaunchRecipeChange={onSaveLaunchRecipeChange}
+          onSaveAgentDefaultChange={onSaveAgentDefaultChange}
+          onOpenSettings={onOpenSettings}
+          onCancel={() => handleOpenChange(false)}
+          onStart={() => void handleStart()}
+        />
+      </DialogContent>
     </Dialog>
   )
 }

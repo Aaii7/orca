@@ -21,7 +21,7 @@ type UseSourceControlAgentActionStartArgs = {
   selectedAgent: TuiAgent | null
   commandInput: string
   trimmedCommandInput: string
-  agentArgs: string
+  agentArgs?: string
   /** False when the launch would be structured native chat, which reads no CLI arguments. */
   agentArgsApply: boolean
   recipe: SourceControlActionRecipe
@@ -58,7 +58,6 @@ type UseSourceControlAgentActionStartArgs = {
 
 type SourceControlAgentActionStartWithDetectedAgentsArgs = {
   detectedAgents: TuiAgent[]
-  saveTargetValueOverride?: string
 }
 
 type UseSourceControlAgentActionStartResult = {
@@ -132,8 +131,7 @@ export function useSourceControlAgentActionStart({
 
   const startWithDetectedAgents = useCallback(
     async ({
-      detectedAgents: nextAgents,
-      saveTargetValueOverride
+      detectedAgents: nextAgents
     }: SourceControlAgentActionStartWithDetectedAgentsArgs): Promise<boolean> => {
       if (!selectedAgent || isStartingRef.current) {
         return false
@@ -154,11 +152,9 @@ export function useSourceControlAgentActionStart({
         return await runSourceControlAgentActionStart({
           selectedAgent,
           trimmedCommandInput,
-          agentArgs,
-          agentArgsApply,
           launchChoice,
           recipe,
-          saveTargetValue: saveLaunchRecipe ? (saveTargetValueOverride ?? saveTargetValue) : 'none',
+          saveTargetValue: saveLaunchRecipe ? saveTargetValue : 'none',
           actionId,
           repoId,
           settings,
@@ -185,8 +181,6 @@ export function useSourceControlAgentActionStart({
     },
     [
       actionId,
-      agentArgs,
-      agentArgsApply,
       buildPlan,
       launchChoice,
       recipe,

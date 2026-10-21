@@ -1,3 +1,5 @@
+import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
+import { AGENT_LAUNCH_SURFACE_RUNTIME_CAPABILITY as SURFACE } from '../../../../shared/agent-launch-runtime-capability'
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -17,7 +19,7 @@ afterEach(() => {
   setLocalRuntimeCapabilitiesForTests(null)
 })
 
-function renderDialog(chat: boolean) {
+function renderDialog(chat: boolean, capable = true, initialRecipe?: SourceControlActionRecipe) {
   const settings = { ...getDefaultSettings('/tmp/pr-3'), defaultTuiAgent: 'claude' as const }
   const launchPreferences = { agentId: 'codex' as const, model: 'chosen' }
   settings.sourceControlAi!.actions = { resolveConflicts: { agentId: null, launchPreferences } }
@@ -25,12 +27,13 @@ function renderDialog(chat: boolean) {
     settings: { ...settings, experimentalNativeChat: chat },
     detectedAgentIds: ['claude', 'codex']
   })
-  setLocalRuntimeCapabilitiesForTests([CHAT, CLIENT])
+  setLocalRuntimeCapabilitiesForTests([CHAT, CLIENT, ...(capable ? [SURFACE] : [])])
   const onStart = vi.fn().mockResolvedValue(true)
   const onSaveAgentDefault = vi.fn()
   const view = renderHook(() =>
     useSourceControlAgentActionDialog({
       open: true,
+      initialRecipe,
       onOpenChange: () => {},
       actionId: 'resolveConflicts',
       title: '',
@@ -91,4 +94,19 @@ it('saves no surface for a pick made when the picker offers no chats', async () 
   const savedRecipe = onSaveAgentDefault.mock.calls[0]?.[2]
   expect(savedRecipe).toMatchObject({ agentId: 'codex' })
   expect(savedRecipe).not.toHaveProperty('surface')
+})
+
+it('leaves an untouched saved surface in the draft but omits it when saving to an older action host', async () => {
+  const { result, onSaveAgentDefault } = renderDialog(true, false, {
+    agentId: 'codex',
+    surface: 'terminal'
+  })
+  await waitFor(() => expect(result.current.canStart).toBe(true))
+  expect(result.current.recipe.surface).toBe('terminal')
+  act(() => result.current.onCommandTemplateChange('edited {basePrompt}'))
+  await act(() => result.current.handleStart())
+  const saved = onSaveAgentDefault.mock.calls[0]?.[2]
+  expect(saved).not.toHaveProperty('surface')
+  expect(saved).not.toHaveProperty('agentArgs')
+  expect(result.current.recipe.surface).toBe('terminal')
 })

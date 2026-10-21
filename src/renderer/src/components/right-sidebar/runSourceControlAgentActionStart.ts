@@ -15,14 +15,11 @@ import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { sourceControlActionRecipeMatchesTarget } from './source-control-action-recipe-match'
 import { resolveSourceControlAgentSaveTarget } from './source-control-agent-action-dialog-support'
-import { sourceControlActionLaunchOptions } from '../../../../shared/source-control-action-launch-preferences'
+import { projectSourceControlActionLaunch } from '../../../../shared/source-control-action-launch-preferences'
 
 export type RunSourceControlAgentActionStartArgs = {
   selectedAgent: TuiAgent
   trimmedCommandInput: string
-  agentArgs: string
-  /** False when the launch would be structured native chat, which reads no CLI arguments. */
-  agentArgsApply: boolean
   /** The picker's choice: a deliberate surface stays explicit, a saved replay requests terminal only. */
   launchChoice?: AgentLaunchChoice
   recipe: SourceControlActionRecipe
@@ -67,8 +64,6 @@ export type RunSourceControlAgentActionStartArgs = {
 export async function runSourceControlAgentActionStart({
   selectedAgent,
   trimmedCommandInput,
-  agentArgs,
-  agentArgsApply,
   launchChoice,
   recipe,
   saveTargetValue,
@@ -91,11 +86,19 @@ export async function runSourceControlAgentActionStart({
   let launched = false
   let launchFailureNotified = false
   let launchAcceptedNotified = false
-  // Why: `undefined` is what makes the launch fall back to the global Agents arguments;
-  // an empty string would beat that fallback and silently suppress them.
-  const launchAgentArgs = agentArgsApply ? agentArgs : undefined
-  // The dialog edits agent, arguments and prompt; the model stays the saved one for that agent.
-  const launchOptions = sourceControlActionLaunchOptions(recipe, selectedAgent)
+  const projection = projectSourceControlActionLaunch(
+    recipe,
+    selectedAgent,
+    { renderedPrompt: trimmedCommandInput },
+    launchChoice
+  )
+  const {
+    commandInput: _prompt,
+    agentArgs: launchAgentArgs,
+    requestedSurface,
+    selectedExecutionHostId,
+    ...launchOptions
+  } = projection
   const notifyLaunchAccepted = (): void => {
     if (launchAcceptedNotified) {
       return
@@ -123,8 +126,8 @@ export async function runSourceControlAgentActionStart({
       prompt: trimmedCommandInput,
       agentArgs: launchAgentArgs,
       ...launchOptions,
-      requestedSurface: launchChoice?.requestedSurface,
-      selectedExecutionHostId: launchChoice?.executionHostId,
+      requestedSurface,
+      selectedExecutionHostId,
       promptDelivery,
       launchPlatform,
       launchSource
@@ -176,13 +179,11 @@ export async function runSourceControlAgentActionStart({
     })
   )
   if (saveTarget && onSaveAgentDefault && !launchRecipeAlreadySaved) {
-    try {
-      await onSaveAgentDefault(saveTarget, actionId, recipe)
-    } catch (error) {
-      // Why: the prompt already reached the agent; a failed recipe save must not strand the
-      // caller's accepted-launch bookkeeping (neither onLaunched nor onLaunchAborted would fire).
-      console.error('onSaveAgentDefault failed', error)
-    }
+    void Promise.resolve()
+      .then(() => onSaveAgentDefault(saveTarget, actionId, recipe))
+      .catch((error) => {
+        console.error('onSaveAgentDefault failed', error)
+      })
   }
   onLaunched?.()
   onClose()

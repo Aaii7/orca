@@ -61,11 +61,10 @@ export function completeRepoActionRecipe(
     typeof recipe.commandInputTemplate === 'string'
       ? recipe.commandInputTemplate
       : DEFAULT_SOURCE_CONTROL_ACTION_COMMAND_TEMPLATES[actionId]
-  const agentArgs = typeof recipe.agentArgs === 'string' ? recipe.agentArgs : ''
   return {
     agentId: recipe.agentId ?? null,
     commandInputTemplate,
-    ...(agentArgs ? { agentArgs } : {}),
+    ...(recipe.agentArgs !== undefined ? { agentArgs: recipe.agentArgs } : {}),
     ...(recipe.launchPreferences ? { launchPreferences: recipe.launchPreferences } : {}),
     ...(recipe.surface ? { surface: recipe.surface } : {})
   }

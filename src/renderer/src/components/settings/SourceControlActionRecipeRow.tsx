@@ -1,3 +1,5 @@
+import { SourceControlActionAgentPicker } from './SourceControlActionAgentPicker'
+import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
 import { Terminal } from 'lucide-react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -43,7 +45,12 @@ type SourceControlActionRecipeRowProps<ActionId extends AiActionId> = {
   isSavingTemplate: boolean
   hasUnsavedChanges?: boolean
   repoOverrideNote?: React.ReactNode
-  onAgentChange: (actionId: ActionId, value: string) => void
+  onAgentChange: (
+    actionId: ActionId,
+    value: string,
+    choice?: Pick<SourceControlActionRecipe, 'surface'>
+  ) => void
+  surface?: SourceControlActionRecipe['surface']
   /** Launch actions only, for chats and terminals alike; text actions run headless through CLI arguments. */
   launchPreferences?: SourceControlActionLaunchPreferences
   onLaunchPreferencesChange?: (
@@ -83,6 +90,7 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
   hasUnsavedChanges,
   repoOverrideNote,
   onAgentChange,
+  surface,
   launchPreferences,
   onLaunchPreferencesChange,
   onTemplateChange,
@@ -110,44 +118,54 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
           <p className="text-[11px] text-muted-foreground">{getActionDescriptions()[actionId]}</p>
         </div>
         <div className="w-full shrink-0 space-y-1 sm:w-[220px]">
-          <Select
-            value={selectedAgent ?? DEFAULT_AGENT_VALUE}
-            onValueChange={(value) => onAgentChange(actionId, value)}
-          >
-            <SelectTrigger size="sm" className="h-8 w-full text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={DEFAULT_AGENT_VALUE}>
-                <span className="flex items-center gap-2">
-                  <Terminal className="size-3.5 text-muted-foreground" />
-                  {translate(
-                    'auto.components.settings.SourceControlAiActionRecipeDefaults.ee0e5c2a48',
-                    'Use default agent'
-                  )}
-                </span>
-              </SelectItem>
-              {AI_TEXT_ACTION_ID_SET.has(actionId) ? (
-                <SelectItem value={CUSTOM_AGENT_ID}>
+          {isLaunchAction ? (
+            <SourceControlActionAgentPicker
+              agent={selectedAgent && !isCustomAgentId(selectedAgent) ? selectedAgent : null}
+              surface={surface}
+              onPick={(agent, choice) =>
+                onAgentChange(actionId, agent ?? DEFAULT_AGENT_VALUE, choice)
+              }
+            />
+          ) : (
+            <Select
+              value={selectedAgent ?? DEFAULT_AGENT_VALUE}
+              onValueChange={(value) => onAgentChange(actionId, value)}
+            >
+              <SelectTrigger size="sm" className="h-8 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DEFAULT_AGENT_VALUE}>
                   <span className="flex items-center gap-2">
                     <Terminal className="size-3.5 text-muted-foreground" />
                     {translate(
-                      'auto.components.settings.SourceControlAiActionRecipeDefaults.0740d30915',
-                      'Custom command'
+                      'auto.components.settings.SourceControlAiActionRecipeDefaults.ee0e5c2a48',
+                      'Use default agent'
                     )}
                   </span>
                 </SelectItem>
-              ) : null}
-              {agentOptions.map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  <span className="flex items-center gap-2">
-                    <AgentIcon agent={agent.id} size={14} />
-                    {agent.label}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {AI_TEXT_ACTION_ID_SET.has(actionId) ? (
+                  <SelectItem value={CUSTOM_AGENT_ID}>
+                    <span className="flex items-center gap-2">
+                      <Terminal className="size-3.5 text-muted-foreground" />
+                      {translate(
+                        'auto.components.settings.SourceControlAiActionRecipeDefaults.0740d30915',
+                        'Custom command'
+                      )}
+                    </span>
+                  </SelectItem>
+                ) : null}
+                {agentOptions.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    <span className="flex items-center gap-2">
+                      <AgentIcon agent={agent.id} size={14} />
+                      {agent.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {agentWarningText ? (
             <p className="text-[11px] text-destructive">{agentWarningText}</p>
           ) : agentSupportText ? (
@@ -168,7 +186,7 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
               />
             ) : null}
             <SourceControlActionExtraArgsField
-              value={draftValue.agentArgs}
+              value={draftValue.agentArgs ?? ''}
               onChange={(value) => onAgentArgsChange(actionId, value)}
             />
           </div>
@@ -180,7 +198,7 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
             )}
           >
             <Input
-              value={draftValue.agentArgs}
+              value={draftValue.agentArgs ?? ''}
               spellCheck={false}
               placeholder={agentArgsPlaceholder}
               onChange={(event) => onAgentArgsChange(actionId, event.target.value)}

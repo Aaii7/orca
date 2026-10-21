@@ -177,7 +177,7 @@ describe('launchAgentWithPrompt', () => {
     })
     await run(client)
     expect(launchParams(sendRequest)).toMatchObject({ agent: 'claude' })
-    expect(launchParams(sendRequest)).not.toHaveProperty('agentArgs')
+    expect(launchParams(sendRequest)).toHaveProperty('agentArgs', '--model opus')
   })
 
   it('refuses rather than swaps when the saved agent is not on this host', async () => {
@@ -317,3 +317,51 @@ describe('agentStartedMessage', () => {
     expect(agentStartedMessage('   ')).toBe('Agent started')
   })
 })
+
+it.each([undefined, '', '--add-dir /extra'])(
+  'forwards saved argument presence (%s) and capability-gated surface without changing warning success',
+  async (agentArgs) => {
+    for (const surface of [undefined, 'chat', 'terminal'] as const) {
+      for (const capable of [false, true]) {
+        const { client, sendRequest } = hostClient({
+          settings: {
+            defaultTuiAgent: 'codex',
+            sourceControlAi: {
+              actions: {
+                fixChecks: {
+                  agentId: 'codex',
+                  surface,
+                  ...(agentArgs !== undefined ? { agentArgs } : {})
+                }
+              }
+            }
+          },
+          launch: launchedWith(
+            { delivery: 'submit', outcome: 'handed-to-terminal' },
+            'The host ignored terminal-only arguments.'
+          )
+        })
+        const result = await run(client, [
+          ...LAUNCH_CAPABILITIES,
+          ...(capable ? ['agent.launch.surface.v1'] : [])
+        ])
+        expect(result).toEqual({
+          kind: 'sent',
+          warning: 'The host ignored terminal-only arguments.'
+        })
+        const params = launchParams(sendRequest)
+        if (agentArgs === undefined) {
+          expect(params).not.toHaveProperty('agentArgs')
+        } else {
+          expect(params).toHaveProperty('agentArgs', agentArgs)
+        }
+        if (surface === 'terminal' && capable) {
+          expect(params).toHaveProperty('surface', 'terminal')
+        } else {
+          expect(params).not.toHaveProperty('surface')
+        }
+        expect(promptedLaunchNotice(result).succeeded).toBe(true)
+      }
+    }
+  }
+)

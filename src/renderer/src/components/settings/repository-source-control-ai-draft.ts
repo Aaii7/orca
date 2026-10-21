@@ -159,7 +159,7 @@ export function withRepoAiActionRecipeText(
   base: RepoSourceControlAiOverrides,
   settings: GlobalSettings | null,
   actionId: SourceControlActionId,
-  text: { commandInputTemplate: string; agentArgs: string }
+  text: { commandInputTemplate: string; agentArgs?: string }
 ): RepoSourceControlAiOverrides {
   const currentRecipe =
     base.actionOverrides?.[actionId] ?? readCompleteRecipeForDraft(base, settings, actionId)
@@ -174,7 +174,7 @@ export function withRepoAiActionRecipeText(
 
 export type ActionRecipeTextDraft = {
   commandInputTemplate: string
-  agentArgs: string
+  agentArgs?: string
 }
 
 export function readActionRecipeTextDraft(
@@ -185,7 +185,7 @@ export function readActionRecipeTextDraft(
   return {
     commandInputTemplate:
       typeof recipe?.commandInputTemplate === 'string' ? recipe.commandInputTemplate : '',
-    agentArgs: typeof recipe?.agentArgs === 'string' ? recipe.agentArgs : ''
+    agentArgs: recipe?.agentArgs ?? undefined
   }
 }
 

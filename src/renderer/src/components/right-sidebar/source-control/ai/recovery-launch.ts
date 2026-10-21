@@ -13,10 +13,7 @@ import {
   readSourceControlLaunchRecipeAgentId
 } from '../../../../../../shared/source-control-launch-agent-selection'
 import { isTuiAgentEnabled } from '../../../../../../shared/tui-agent-selection'
-import {
-  resolveSourceControlActionRequestedSurface,
-  sourceControlActionLaunchOptions
-} from '../../../../../../shared/source-control-action-launch-preferences'
+import { projectSourceControlActionLaunch } from '../../../../../../shared/source-control-action-launch-preferences'
 import type {
   SourceControlActionRecipe,
   SourceControlLaunchActionId
@@ -147,15 +144,16 @@ export async function launchSourceControlRecoveryAgentWithDefault({
     toast.error(copy.noEnabledAgent)
     return false
   }
+  const { commandInput, ...projection } = projectSourceControlActionLaunch(savedRecipe, agent, {
+    renderedPrompt: prompt
+  })
   const result = launchAgentInNewTab({
     requestId: newAgentLaunchRequestId(),
     agent,
     worktreeId: activeWorktreeId,
     groupId: activeGroupId ?? activeWorktreeId,
-    prompt,
-    agentArgs: savedRecipe.agentArgs,
-    ...sourceControlActionLaunchOptions(savedRecipe, agent),
-    requestedSurface: resolveSourceControlActionRequestedSurface(savedRecipe, agent),
+    prompt: commandInput,
+    ...projection,
     promptDelivery: 'submit-after-ready',
     launchPlatform: activeSourceControlLaunchPlatform,
     launchSource: 'source_control_recovery'

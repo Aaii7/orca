@@ -14,6 +14,7 @@ export function SourceControlContentStatus({
   unresolvedConflictCount,
   conflictOperation,
   sourceControlAiActionsVisible,
+  isResolvingWithAI = false,
   isAbortingOperation,
   onAbortOperation,
   onResolveWithAi,
@@ -34,6 +35,7 @@ export function SourceControlContentStatus({
   unresolvedConflictCount: number
   conflictOperation: GitConflictOperation
   sourceControlAiActionsVisible: boolean
+  isResolvingWithAI?: boolean
   isAbortingOperation: boolean
   onAbortOperation: (operation: GitConflictOperation) => void
   onResolveWithAi: () => void
@@ -59,7 +61,7 @@ export function SourceControlContentStatus({
             conflictOperation={conflictOperation}
             unresolvedCount={unresolvedConflictCount}
             sourceControlAiActionsVisible={sourceControlAiActionsVisible}
-            isResolvingWithAI={false}
+            isResolvingWithAI={isResolvingWithAI}
             isAbortingOperation={isAbortingOperation}
             onAbortOperation={onAbortOperation}
             onResolveWithAI={onResolveWithAi}

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import './settings-persistence-test-fixture'
 import React from 'react'
@@ -284,4 +284,37 @@ describe('dropRepoLegacyInstructionForAction', () => {
 
     expect(dropRepoLegacyInstructionForAction(value, 'fixChecks')).toBe(value)
   })
+})
+
+it('a repository surface-only edit keeps inherited explicit empty arguments and same-agent options', () => {
+  const settings = useAppStore.getState().settings!
+  const launchPreferences = {
+    agentId: 'codex' as const,
+    model: 'saved',
+    permissionMode: 'ask' as const
+  }
+  const sourceSettings = {
+    ...settings,
+    sourceControlAi: {
+      ...settings.sourceControlAi!,
+      actions: { fixChecks: { agentId: 'codex' as const, agentArgs: '', launchPreferences } }
+    }
+  }
+  const edited = withRepoAiActionAgent(
+    { actionOverrides: { fixChecks: { commandInputTemplate: '{basePrompt}' } } },
+    sourceSettings,
+    'fixChecks',
+    'codex',
+    { surface: 'terminal' }
+  )
+  expect(edited.actionOverrides?.fixChecks).toMatchObject({
+    agentId: 'codex',
+    agentArgs: '',
+    launchPreferences,
+    surface: 'terminal'
+  })
+  const changedAgent = withRepoAiActionAgent(edited, sourceSettings, 'fixChecks', 'claude', {
+    surface: 'chat'
+  })
+  expect(changedAgent.actionOverrides?.fixChecks?.launchPreferences).toBeUndefined()
 })

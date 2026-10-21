@@ -5,11 +5,9 @@ import React, { type ReactNode, useState, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDefaultSettings } from '../../../../shared/constants'
-import { STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
 import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
-import type { TuiAgent } from '../../../../shared/tui-agent'
 
 const mocks = vi.hoisted(() => ({
   ensureDetectedAgents: vi.fn(),
@@ -220,67 +218,24 @@ describe('SourceControlAgentActionDialog', () => {
     useAppStore.setState(initialState, true)
     setLocalRuntimeCapabilitiesForTests(null)
   })
-  it('hides the dialog and auto-starts once when the saved global launch recipe matches', async () => {
-    renderControlledDialog()
-    expect(container.textContent).not.toContain('Launch agent')
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    await vi.waitFor(() => expect(mocks.onOpenChange).toHaveBeenCalledWith(false))
-    expect(mocks.ensureDetectedAgents).toHaveBeenCalledTimes(1)
-    expect(mocks.onStart).toHaveBeenCalledWith({
-      agent: 'codex',
-      commandInput: 'Resolve conflicts.',
-      agentArgs: '',
-      // A saved replay with no saved surface follows the settings route.
-      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
-    })
-    expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
-    expect(mocks.onSaveAgentDefault).not.toHaveBeenCalled()
-    expect(container.textContent).not.toContain('Launch agent')
-  })
-  it('hides the dialog and auto-starts once when the saved repo launch recipe matches', async () => {
-    resetStore(
-      settingsWithGlobalRecipe({ agentId: 'claude', commandInputTemplate: '{basePrompt}' }),
-      [repoWithSavedRecipe()]
-    )
-    renderControlledDialog({ repoId: 'repo-1' })
-    expect(container.textContent).not.toContain('Launch agent')
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    await vi.waitFor(() => expect(mocks.onOpenChange).toHaveBeenCalledWith(false))
-    expect(mocks.ensureDetectedAgents).toHaveBeenCalledTimes(1)
-    expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
-    expect(mocks.onSaveAgentDefault).not.toHaveBeenCalled()
-    expect(container.textContent).not.toContain('Launch agent')
-  })
-  it('keeps saved arguments on a prospective SSH terminal launch', async () => {
-    setLocalRuntimeCapabilitiesForTests([STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY])
-    const recipe = {
-      agentId: 'codex' as const,
-      commandInputTemplate: '{basePrompt}',
-      agentArgs: '--model saved'
+  it.each(['global', 'repo'])(
+    'opens saved %s recipes for editing and Cancel starts nothing',
+    async (scope) => {
+      if (scope === 'repo') {
+        resetStore(settingsWithGlobalRecipe(), [repoWithSavedRecipe()])
+      }
+      renderControlledDialog(scope === 'repo' ? { repoId: 'repo-1' } : {})
+      await flushEffects()
+      expect(container.textContent).toContain('Launch agent')
+      expect(container.querySelector('textarea')?.value).toBe('{basePrompt}')
+      const cancel = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Cancel'
+      )!
+      act(() => cancel.click())
+      expect(mocks.onStart).not.toHaveBeenCalled()
+      expect(mocks.onLaunched).not.toHaveBeenCalled()
     }
-    resetStore(
-      {
-        ...settingsWithGlobalRecipe(null),
-        experimentalNativeChat: true
-      },
-      [repoWithSavedRecipe('--model saved', 'build-box', 'ssh:build-box')]
-    )
-
-    renderControlledDialog({
-      repoId: 'repo-1',
-      connectionId: 'build-box',
-      savedAgentArgs: recipe.agentArgs
-    })
-
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    expect(mocks.onStart).toHaveBeenCalledWith({
-      agent: 'codex',
-      commandInput: 'Resolve conflicts.',
-      agentArgs: '--model saved',
-      // A saved replay with no saved surface follows the settings route.
-      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
-    })
-  })
+  )
   // Why (#21429): a paired server's workspace has no SSH connection on this client; its agents
   // are on the server, and this client's own list says nothing about them.
   it('detects agents on the paired server that owns the workspace', async () => {
@@ -297,128 +252,16 @@ describe('SourceControlAgentActionDialog', () => {
 
     renderControlledDialog({ repoId: 'repo-1', worktreeId: 'repo-1::wt-1', connectionId: null })
 
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() =>
+      expect(mocks.ensureRuntimeDetectedAgents).toHaveBeenCalledWith('env-1', 'repo-1::wt-1')
+    )
+    expect(mocks.onStart).not.toHaveBeenCalled()
+    const start = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.toLowerCase().includes('start agent')
+    )!
+    await act(async () => start.click())
+    expect(mocks.onStart).toHaveBeenCalledTimes(1)
     expect(mocks.ensureRuntimeDetectedAgents).toHaveBeenCalledWith('env-1', 'repo-1::wt-1')
     expect(mocks.ensureDetectedAgents).not.toHaveBeenCalled()
-  })
-  it('omits saved arguments from a structured local launch', async () => {
-    setLocalRuntimeCapabilitiesForTests([STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY])
-    const recipe = {
-      agentId: 'codex' as const,
-      commandInputTemplate: '{basePrompt}',
-      agentArgs: '--model saved'
-    }
-    resetStore(
-      {
-        ...settingsWithGlobalRecipe(recipe),
-        experimentalNativeChat: true
-      },
-      []
-    )
-
-    renderControlledDialog({ savedAgentArgs: recipe.agentArgs })
-
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    expect(mocks.onStart).toHaveBeenCalledWith({
-      agent: 'codex',
-      commandInput: 'Resolve conflicts.',
-      agentArgs: undefined,
-      // A saved replay with no saved surface follows the settings route.
-      launchChoice: expect.not.objectContaining({ requestedSurface: expect.anything() })
-    })
-  })
-  it('renders the form and does not auto-start when the saved launch recipe mismatches', async () => {
-    resetStore(
-      settingsWithGlobalRecipe({ agentId: 'claude', commandInputTemplate: '{basePrompt}' })
-    )
-    renderControlledDialog()
-    await vi.waitFor(() => expect(mocks.ensureDetectedAgents).toHaveBeenCalledTimes(1))
-    await flushEffects()
-    expect(mocks.onStart).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Launch agent')
-    expect(container.textContent).toContain('Save & start agent')
-  })
-  it('reveals the form with status copy when the saved agent is unavailable', async () => {
-    detects([])
-    resetStore(settingsWithGlobalRecipe())
-    renderControlledDialog()
-    await vi.waitFor(() =>
-      expect(container.textContent?.toLowerCase()).toContain('not enabled or was not detected')
-    )
-    expect(mocks.onStart).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Launch agent')
-  })
-  it('reveals the dialog and remains open when auto-start fails', async () => {
-    mocks.onStart.mockResolvedValue(false)
-    renderControlledDialog()
-    expect(container.textContent).not.toContain('Launch agent')
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    await vi.waitFor(() => expect(container.textContent).toContain('Launch agent'))
-    expect(mocks.onLaunched).not.toHaveBeenCalled()
-    expect(mocks.onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(mocks.toastError).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps prompt editing available when async auto-start delivery fails', async () => {
-    mocks.onStart.mockImplementation(async () => {
-      await Promise.resolve()
-      return false
-    })
-    renderControlledDialog({
-      baseCommandInput: 'Resolve queued comments.',
-      savedCommandInputTemplate: '{basePrompt}'
-    })
-    expect(container.textContent).not.toContain('Launch agent')
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    await vi.waitFor(() => expect(container.textContent).toContain('Launch agent'))
-
-    expect(container.querySelector('textarea')?.value).toContain('{basePrompt}')
-    expect(container.textContent).toContain('Start agent')
-    expect(mocks.onLaunched).not.toHaveBeenCalled()
-    expect(mocks.onOpenChange).not.toHaveBeenCalledWith(false)
-  })
-
-  it('does not auto-start when a saved receipt appears after the dialog is already open', async () => {
-    let setSavedAgentId: (agent: TuiAgent | null) => void = () => {}
-
-    function Harness(): React.JSX.Element {
-      const [savedAgentId, setNextSavedAgentId] = useState<TuiAgent | null>(null)
-      setSavedAgentId = setNextSavedAgentId
-      return (
-        <SourceControlAgentActionDialog
-          open
-          onOpenChange={mocks.onOpenChange}
-          actionId="resolveConflicts"
-          title="Launch agent"
-          description="Review the launch recipe before starting."
-          baseCommandInput="Resolve conflicts."
-          savedCommandInputTemplate="{basePrompt}"
-          savedAgentArgs=""
-          launchSource="source_control_recovery"
-          savedAgentId={savedAgentId}
-          onSaveAgentDefault={mocks.onSaveAgentDefault}
-          onLaunched={mocks.onLaunched}
-          onStart={mocks.onStart}
-        />
-      )
-    }
-    act(() => {
-      root.render(<Harness />)
-    })
-    await vi.waitFor(() => expect(container.textContent).toContain('Launch agent'))
-    act(() => {
-      setSavedAgentId('codex')
-    })
-    await flushEffects()
-    expect(mocks.onStart).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Launch agent')
-  })
-  it('does not double-start during StrictMode effect replay', async () => {
-    renderControlledDialog({}, { strictMode: true })
-
-    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
-    await flushEffects()
-    expect(mocks.onStart).toHaveBeenCalledTimes(1)
-    expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
   })
 })

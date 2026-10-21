@@ -14,7 +14,6 @@ export type SourceControlAgentScopeNote = {
 
 export type UseSourceControlAgentActionDialogResult = {
   handleOpenChange: (nextOpen: boolean) => void
-  shouldRenderDialog: boolean
   agentScopeNote: SourceControlAgentScopeNote | null
   agentOptions: ReturnType<typeof getAgentCatalog>
   selectedAgent: TuiAgent | null

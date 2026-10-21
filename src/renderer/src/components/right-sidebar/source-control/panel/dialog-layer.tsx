@@ -38,6 +38,7 @@ export function SourceControlDialogLayer({
   onSelectBaseRef,
   onUsePrimaryBaseRef,
   sourceControlAiActionsVisible,
+  resolveConflictsEditor,
   resolveConflictsComposerOpen,
   onResolveConflictsComposerOpenChange,
   resolveConflictsPrompt,
@@ -80,6 +81,7 @@ export function SourceControlDialogLayer({
   onSelectBaseRef: BaseRefPickerProps['onSelect']
   onUsePrimaryBaseRef: NonNullable<BaseRefPickerProps['onUsePrimary']>
   sourceControlAiActionsVisible: boolean
+  resolveConflictsEditor: Partial<AgentDialogProps>
   resolveConflictsComposerOpen: boolean
   onResolveConflictsComposerOpenChange: AgentDialogProps['onOpenChange']
   resolveConflictsPrompt: string
@@ -203,6 +205,7 @@ export function SourceControlDialogLayer({
         savedAgentArgs={savedResolveConflictsAgentArgs}
         onSaveAgentDefault={onSaveAgentDefault}
         onOpenSettings={onOpenSourceControlAiSettings}
+        {...resolveConflictsEditor}
         onLaunched={() =>
           toast.success(
             translate(

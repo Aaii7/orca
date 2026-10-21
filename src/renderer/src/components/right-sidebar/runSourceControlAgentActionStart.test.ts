@@ -30,8 +30,6 @@ function buildArgs(
   return {
     selectedAgent: 'codex',
     trimmedCommandInput: 'Fix the bug',
-    agentArgs: '--model gpt-5',
-    agentArgsApply: true,
     recipe: { agentId: 'codex', commandInputTemplate: '{basePrompt}', agentArgs: '--model gpt-5' },
     saveTargetValue: 'none',
     actionId: 'resolveComments',
@@ -367,33 +365,31 @@ describe('runSourceControlAgentActionStart CLI arguments applicability', () => {
 
   // Why: `undefined` is what reaches the global Agents arguments; an empty string would beat
   // that fallback and launch the agent with no arguments at all.
-  it('omits the per-action arguments so a terminal launch resolves the global setting', async () => {
+  it('keeps terminal candidates even when a dialog field is hidden', async () => {
     mocks.launchAgentInNewTab.mockReturnValue({
       surface: { kind: 'local-terminal', tabId: 'tab-1' }
     })
 
-    await expect(
-      runSourceControlAgentActionStart(buildArgs({ agentArgsApply: false }))
-    ).resolves.toBe(true)
+    await expect(runSourceControlAgentActionStart(buildArgs())).resolves.toBe(true)
 
     expect(mocks.launchAgentInNewTab).toHaveBeenCalledTimes(1)
     const launchCall = mocks.launchAgentInNewTab.mock.calls[0]?.[0]
-    expect(launchCall).toHaveProperty('agentArgs', undefined)
+    expect(launchCall).toHaveProperty('agentArgs', '--model gpt-5')
   })
 
-  it('omits them on the onStart branch too', async () => {
+  it('keeps candidates through the prospective workspace adapter too', async () => {
     const onStart = vi.fn().mockResolvedValue(true)
 
     await expect(
       runSourceControlAgentActionStart(
-        buildArgs({ agentArgsApply: false, onStart, worktreeId: undefined, groupId: undefined })
+        buildArgs({ onStart, worktreeId: undefined, groupId: undefined })
       )
     ).resolves.toBe(true)
 
     expect(onStart).toHaveBeenCalledWith({
       agent: 'codex',
       commandInput: 'Fix the bug',
-      agentArgs: undefined
+      agentArgs: '--model gpt-5'
     })
   })
 
@@ -403,9 +399,7 @@ describe('runSourceControlAgentActionStart CLI arguments applicability', () => {
       surface: { kind: 'local-terminal', tabId: 'tab-1' }
     })
 
-    await runSourceControlAgentActionStart(
-      buildArgs({ agentArgsApply: false, saveTargetValue: 'global' })
-    )
+    await runSourceControlAgentActionStart(buildArgs({ saveTargetValue: 'global' }))
 
     expect(mocks.onSaveAgentDefault).toHaveBeenCalledWith(
       expect.anything(),
@@ -435,3 +429,41 @@ it('executes the actual bound namespace while saving the literal default recipe'
     recipe
   )
 })
+
+it('confirms delivery and closes even while saving remains pending', async () => {
+  mocks.launchAgentInNewTab.mockReturnValue({
+    surface: { kind: 'local-terminal', tabId: 'tab-1' },
+    promptDeliveryResult: Promise.resolve({ delivered: true, failureNotified: false })
+  })
+  const onSaveAgentDefault = vi.fn(() => new Promise<void>(() => {}))
+  const onLaunched = vi.fn()
+  await expect(
+    runSourceControlAgentActionStart(
+      buildArgs({ saveTargetValue: 'global', onSaveAgentDefault, onLaunched })
+    )
+  ).resolves.toBe(true)
+  expect(onLaunched).toHaveBeenCalledOnce()
+  expect(mocks.onClose).toHaveBeenCalled()
+})
+
+it.each([undefined, '', '--add-dir /extra'])(
+  'retains argument presence and inherited option precedence at adapter inputs (%s)',
+  async (agentArgs) => {
+    const recipe = {
+      agentId: 'codex' as const,
+      agentArgs,
+      surface: 'terminal' as const,
+      launchPreferences: { agentId: 'codex' as const, model: 'saved' },
+      launchPreferencesYieldToAgentArgs: true as const
+    }
+    const onStart = vi.fn().mockResolvedValue(true)
+    await runSourceControlAgentActionStart(buildArgs({ recipe, onStart }))
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentArgs,
+        sessionOptions: { model: 'saved' },
+        sessionOptionsYieldToAgentArgs: true
+      })
+    )
+  }
+)

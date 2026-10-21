@@ -29,8 +29,7 @@ import type { LaunchSource } from '../../../shared/telemetry-events'
 import { translate } from '@/i18n/i18n'
 import {
   resolveSourceControlActionRequestedSurface,
-  resolveSourceControlActionSessionOptions,
-  sourceControlActionLaunchOptions
+  projectSourceControlActionLaunch
 } from '../../../shared/source-control-action-launch-preferences'
 
 type StartFixChecksAgentArgs = {
@@ -179,16 +178,19 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
       )
       return false
     }
+    const { commandInput: projectedPrompt, ...projection } = projectSourceControlActionLaunch(
+      recipe,
+      agent,
+      { renderedPrompt: commandInput }
+    )
     let revealFailed = false
     const result = launchAgentInNewTab({
       requestId: newAgentLaunchRequestId(),
       agent,
       worktreeId: targetWorktreeId,
       groupId: args.groupId ?? targetWorktreeId,
-      prompt: commandInput,
-      agentArgs: recipe.agentArgs,
-      ...sourceControlActionLaunchOptions(recipe, agent),
-      requestedSurface: resolveSourceControlActionRequestedSurface(recipe, agent),
+      prompt: projectedPrompt,
+      ...projection,
       promptDelivery: 'submit-after-ready',
       launchPlatform,
       launchSource: args.launchSource,
@@ -243,7 +245,9 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
     telemetrySource: args.telemetrySource,
     promptDelivery: 'submit-after-ready',
     agentArgs: recipe.agentArgs,
-    resolveSessionOptions: (agent) => resolveSourceControlActionSessionOptions(recipe, agent),
+    resolveSessionOptions: (agent) =>
+      projectSourceControlActionLaunch(recipe, agent, { renderedPrompt: commandInput })
+        .sessionOptions,
     ...(agentOverride.kind === 'agent'
       ? {
           agentOverride: agentOverride.agent,

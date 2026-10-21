@@ -1,4 +1,11 @@
+import {
+  buildAgentLaunchRouteInput,
+  workspaceKindForWorktreeId
+} from '@/lib/agent-launch-route-input'
+import { AGENT_LAUNCH_SURFACE_RUNTIME_CAPABILITY } from '../../../../shared/agent-launch-runtime-capability'
+import { isNativeChatEnabled } from '../../../../shared/structured-native-chat-launch-route'
 import { useMemo } from 'react'
+import { useAppStore } from '@/store'
 import { isCustomAgentId } from '../../../../shared/commit-message-agent-spec'
 import { pickSourceControlLaunchAgent } from '../../../../shared/source-control-launch-agent-selection'
 import type { SourceControlActionRecipe } from '../../../../shared/source-control-ai-actions'
@@ -73,8 +80,19 @@ export function useSourceControlActionAgentChoice(args: {
       selectedAgent &&
       !isSourceControlAgentDetectedAndEnabled(selectedAgent, detectedAgents, disabledAgents)
     )
+  const route = buildAgentLaunchRouteInput(useAppStore.getState(), {
+    agent: selectedAgent ?? 'claude',
+    workspace: args.worktreeId
+      ? { worktreeId: args.worktreeId, kind: workspaceKindForWorktreeId(args.worktreeId) }
+      : typeof rows.target === 'string'
+        ? { worktreeId: rows.target, kind: workspaceKindForWorktreeId(rows.target) }
+        : rows.target.workspace
+  })
   return {
     observation,
+    canSaveSurface:
+      isNativeChatEnabled(settings) &&
+      route.hostCapabilities?.includes(AGENT_LAUNCH_SURFACE_RUNTIME_CAPABILITY) === true,
     detectedAgents,
     detecting,
     selectedAgent,
@@ -88,8 +106,6 @@ export function useSourceControlActionAgentChoice(args: {
       (entry) => enabledDetectedAgents.includes(entry.id) || entry.id === selectedAgent
     ),
     // Why the captured route, not `selection.cli`: plain mode labels no row "(CLI)" yet applies them.
-    launchAppliesAgentArgs: selection.choice?.route !== 'structured-native-chat',
-    /** Auto-start replays only once the host's answer for the saved agent is in. */
-    replayReady: !detecting && (selectedAgentUnavailable || selection.ready)
+    launchAppliesAgentArgs: selection.choice?.route !== 'structured-native-chat'
   }
 }

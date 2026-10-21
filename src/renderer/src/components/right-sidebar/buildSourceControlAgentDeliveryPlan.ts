@@ -1,10 +1,12 @@
 import { checkSourceControlAgentActionLaunch } from '@/lib/source-control-agent-action-launch-check'
 import { useAppStore } from '@/store'
+import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { SourceControlAgentActionDeliveryPlanState } from './SourceControlAgentActionDialogForm'
 import { buildSourceControlAgentConnectionErrorPlan } from './source-control-agent-action-dialog-support'
 
 type BuildSourceControlAgentDeliveryPlanArgs = {
+  settings?: GlobalSettings | null
   selectedAgent: TuiAgent | null
   commandInput: string
   agentArgs?: string | undefined
@@ -17,6 +19,7 @@ type BuildSourceControlAgentDeliveryPlanArgs = {
 
 /** The dialog's check before it starts an agent: an error the user can fix, else nothing to show. */
 export function buildSourceControlAgentDeliveryPlan({
+  settings = useAppStore.getState().settings,
   selectedAgent,
   commandInput,
   agentArgs,
@@ -28,7 +31,6 @@ export function buildSourceControlAgentDeliveryPlan({
   if (connectionUnavailable) {
     return buildSourceControlAgentConnectionErrorPlan()
   }
-  const settings = useAppStore.getState().settings
   const result = checkSourceControlAgentActionLaunch({
     agent: selectedAgent,
     commandInput,

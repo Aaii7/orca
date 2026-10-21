@@ -1,9 +1,13 @@
+import type { ExecutionHostId } from './execution-host'
 import {
   findCatalogModel,
   getAgentSessionOptionCatalog,
   type CatalogOption
 } from './agent-session-option-catalog'
-import type { SourceControlActionRecipe } from './source-control-ai-actions'
+import {
+  renderSourceControlActionCommandTemplate,
+  type SourceControlActionRecipe
+} from './source-control-ai-actions'
 import { isTuiAgent } from './tui-agent-config'
 import type { TuiAgent } from './tui-agent'
 import { isAgentSessionHandleProvider } from './agent-session-provider-handle'
@@ -120,4 +124,26 @@ export function resolveSourceControlActionRequestedSurface(
   agent: TuiAgent
 ): 'terminal' | undefined {
   return recipe.surface === 'terminal' && recipe.agentId === agent ? 'terminal' : undefined
+}
+
+/** One recipe meaning for every adapter; shell validation and delivery stay with the host. */
+export function projectSourceControlActionLaunch(
+  recipe: SourceControlActionRecipe,
+  agent: TuiAgent,
+  input: { basePrompt: string } | { renderedPrompt: string },
+  liveChoice?: { requestedSurface?: 'chat' | 'terminal'; executionHostId?: ExecutionHostId }
+) {
+  return {
+    commandInput: ('renderedPrompt' in input
+      ? input.renderedPrompt
+      : renderSourceControlActionCommandTemplate(recipe.commandInputTemplate ?? '{basePrompt}', {
+          basePrompt: input.basePrompt
+        })
+    ).trim(),
+    agentArgs: recipe.agentArgs?.trim(),
+    ...sourceControlActionLaunchOptions(recipe, agent),
+    requestedSurface:
+      liveChoice?.requestedSurface ?? resolveSourceControlActionRequestedSurface(recipe, agent),
+    selectedExecutionHostId: liveChoice?.executionHostId
+  }
 }

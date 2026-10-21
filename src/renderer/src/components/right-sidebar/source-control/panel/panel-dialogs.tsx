@@ -32,6 +32,7 @@ export function SourceControlPanelDialogs({
     pickerBaseRef,
     pullRequestGenerationDialogOpen,
     refreshBranchCompare,
+    resolveConflictsEditor,
     resolveConflictsComposerOpen,
     resolveConflictsPrompt,
     resolvedPendingDiffCommentsClear,
@@ -82,6 +83,7 @@ export function SourceControlPanelDialogs({
         window.setTimeout(() => void refreshBranchCompare(), 0)
       }}
       sourceControlAiActionsVisible={sourceControlAiActionsVisible}
+      resolveConflictsEditor={resolveConflictsEditor}
       resolveConflictsComposerOpen={resolveConflictsComposerOpen}
       onResolveConflictsComposerOpenChange={setResolveConflictsComposerOpen}
       resolveConflictsPrompt={resolveConflictsPrompt}
