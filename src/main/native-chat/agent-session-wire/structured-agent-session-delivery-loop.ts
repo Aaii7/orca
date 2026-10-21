@@ -1,3 +1,4 @@
+import type { AgentChatPermissionMode } from '../../../shared/agent-chat-permission-mode'
 // The one thing that starts a provider child for a send, the one thing that hands a message to
 // it, and the one thing that settles a queued message because of a start, a child or a leftover.
 //
@@ -14,6 +15,7 @@
 // earlier host process left queued is never handed over: the open, or this loop's first step,
 // settles it first (`journal-unsent-send-hold.ts`).
 
+import { beginStructuredAgentSessionInputHandover } from './structured-agent-session-input-handover'
 import type { StructuredAgentSessionDeliveryOrder } from './structured-agent-session-delivery-order'
 import type { AgentJournalCursor } from '../../../shared/agent-session-journal-types'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
@@ -35,10 +37,7 @@ import {
   refusedStructuredAgentSessionStart,
   startThatFailedWhileQueued
 } from './structured-agent-session-start-failure-row'
-import {
-  beginSubmissionHandover,
-  type StructuredAgentSessionPendingHandover
-} from './structured-agent-session-handover'
+import type { StructuredAgentSessionPendingHandover } from './structured-agent-session-handover'
 import { structuredAgentSessionNextHandover } from './structured-agent-session-opening-send'
 import { structuredAgentSessionCommandRunning } from './structured-agent-session-command-turn'
 import type { StructuredAgentSessionLogger } from './structured-agent-session-logger'
@@ -62,13 +61,9 @@ export type StructuredAgentSessionDeliveryLoopDeps = {
   /** Claims the start for the queued head inside the ordered preparation. */
   startProviderChild: (sessionId: string, startedFor: string) => StructuredAgentSessionStartClaim
   /** Stops a child the chat outgrew (a new login or permission mode); inside `serialize`. */
-  retireOutgrownChild: (sessionId: string) => Promise<void>
-  preparePermissionMode?: (sessionId: string) => Promise<void>
-  readPermissionMode?: (
-    sessionId: string
-  ) => ReturnType<
-    NonNullable<Parameters<StructuredAgentSessionAdapter['dispatch']>[0]['readPermissionMode']>
-  >
+  retireOutgrownChild: (sessionId: string, continuingId?: string) => Promise<void>
+  immediatePermission?: (sessionId: string) => AgentChatPermissionMode | null
+  retainedWork?: (sessionId: string, continuingId: string) => boolean
   readiness: (
     sessionId: string,
     child: StructuredAgentSessionProviderChildIdentity
@@ -153,7 +148,6 @@ export class StructuredAgentSessionDeliveryLoop {
   private async run(sessionId: string): Promise<void> {
     try {
       for (;;) {
-        await this.deps.preparePermissionMode?.(sessionId)
         const prepared = await this.deps.trackStart(
           this.deps.serialize(sessionId, () => this.prepare(sessionId))
         )
@@ -325,30 +319,13 @@ export class StructuredAgentSessionDeliveryLoop {
     ) {
       return this.stop(sessionId)
     }
-    const pending = await beginSubmissionHandover(
-      {
-        sessionId,
-        journal: session.journal,
-        fence: awaitedChild.fence,
-        adapter: this.deps.adapter,
-        agents: this.deps.agents,
-        failureTextContext: this.deps.failureTextContext(sessionId),
-        record: () => this.deps.record(sessionId),
-        readPermissionMode: this.deps.readPermissionMode
-          ? () => this.deps.readPermissionMode?.(sessionId) ?? Promise.resolve(null)
-          : undefined,
-        currentWork: () => this.deps.currentWork(sessionId),
-        childWork: () => this.deps.readChildWork(sessionId),
-        childWorkOpen: () => this.deps.childWorkOpen(sessionId),
-        now: this.deps.now,
-        acquireAborts: this.deps.acquireAborts,
-        deliveryOrder: this.deps.deliveryOrder,
-        workChanged: () => this.deps.workChanged?.(sessionId),
-        recordRanOptions: this.deps.recordRanOptions?.(sessionId, awaitedChild.fence)
-      },
+    const pending = await beginStructuredAgentSessionInputHandover(
+      this.deps,
+      sessionId,
+      session,
+      awaitedChild,
       next,
-      // Re-read right before the provider call, which runs outside the serialize.
-      () => this.deps.sessions.get(sessionId)?.child === awaitedChild && !awaitedChild.close
+      () => this.disposed
     )
     return pending ?? 'continue'
   }

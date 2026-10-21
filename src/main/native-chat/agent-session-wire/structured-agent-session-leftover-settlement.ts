@@ -1,3 +1,4 @@
+import { continuingStructuredAgentSessionInput } from './structured-agent-session-handing-over'
 // The one settlement of what ended generations left unfinished. An observed exit runs it, with
 // what it saw.
 //
@@ -104,7 +105,7 @@ export async function settleStructuredAgentSessionLeftovers(
         const dispatches = [
           ...exited.dispatches,
           ...stale.dispatches.filter((entry) => !settledByExit.has(entry.clientMessageId))
-        ]
+        ].filter((entry) => !continuingStructuredAgentSessionInput(journal, entry.clientMessageId))
         planned = mutations.length + dispatches.length
         return { mutations, dispatches }
       }

@@ -58,9 +58,6 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
   dispatch: StructuredAgentSessionAdapter['dispatch'] = (input) =>
     this.owner(input.sessionId).dispatch(input)
 
-  preparePermissionMode = async (sessionId: string, mode: AgentChatPermissionMode): Promise<void> =>
-    this.liveOwnerOrNull(sessionId)?.preparePermissionMode?.(sessionId, mode)
-
   permissionModeRequiresAcquisition = (
     sessionId: string,
     mode: AgentChatPermissionMode

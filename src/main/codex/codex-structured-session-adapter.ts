@@ -1,9 +1,4 @@
 import * as codexRewind from './codex-structured-rewind'
-import { waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
-import {
-  prepareCodexTurnPermission,
-  codexPermissionRequiresAcquisition
-} from './codex-structured-turn-permission'
 import type { AgentSessionBackgroundTaskState } from '../../shared/agent-session-wire'
 import { isCodexAppServerRequestError } from './codex-app-server-connection'
 import type {
@@ -24,7 +19,7 @@ import {
   prepareLiveCodexSessionOptions,
   readLiveCodexSessionOptions
 } from './codex-structured-session-options'
-import { resolvedCodexMessageOptions } from './codex-structured-message-options'
+import { prepareCodexMessageDispatch } from './codex-structured-message-options'
 import {
   CodexAcquisitionRegistry,
   requireLiveCodexSession,
@@ -96,18 +91,7 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
 
   readonly atRestCommands: CodexStructuredSessionAdapterDeps['atRestCommands']
 
-  preparePermissionMode: NonNullable<StructuredAgentSessionAdapter['preparePermissionMode']> =
-    async (sessionId, mode) => {
-      const session = this.sessions.get(sessionId)
-      if (session && !session.ended) await prepareCodexTurnPermission(session, mode)
-    }
-
-  permissionModeRequiresAcquisition: NonNullable<
-    StructuredAgentSessionAdapter['permissionModeRequiresAcquisition']
-  > = (sessionId, mode) => {
-    const session = this.sessions.get(sessionId)
-    return session ? codexPermissionRequiresAcquisition(session, mode) : undefined
-  }
+  permissionModeRequiresAcquisition = (): boolean => false
 
   acquire = (input: StructuredAgentSessionAcquireInput): Promise<AgentSessionAcquisition> =>
     acquireCodexStructuredSession({
@@ -255,24 +239,13 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
     const session = this.session(input.sessionId)
     session.dispatchPending = true
     try {
-      await input.beforeDispatch?.()
-      input.signal?.throwIfAborted()
-      const turnOptions = await waitForPromiseWithSignal(
-        resolvedCodexMessageOptions(session, input.executionOptions),
-        input.signal
-      )
-      input.signal?.throwIfAborted()
       return await dispatchCodexTurn(
         session,
-        {
-          ...input,
-          turnOptions,
-          isCurrent: () =>
-            this.sessions.get(input.sessionId) === session &&
-            !session.ended &&
-            session.fence === input.fence &&
-            input.isCurrent?.() !== false
-        },
+        await prepareCodexMessageDispatch(
+          session,
+          input,
+          () => this.sessions.get(input.sessionId) === session
+        ),
         this.deps.requestTimeoutMs
       )
     } finally {

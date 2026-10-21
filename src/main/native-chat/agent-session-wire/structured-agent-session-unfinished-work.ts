@@ -1,5 +1,6 @@
 // What a gone child generation left unfinished in the journal, and whether its exit interrupted it.
 
+import { continuingStructuredAgentSessionInput } from './structured-agent-session-handing-over'
 import type { AgentJournalRenderItem } from '../../../shared/agent-session-journal-types'
 import { readAgentJournalTurn } from '../../../shared/agent-session-turn-record'
 import { requiresTerminalSettlement } from '../agent-session-journal/journal-terminal-settlement'
@@ -114,9 +115,10 @@ function hasUnsettledSubmission(journal: DeadGenerationJournal): boolean {
     ? submissions.some(
         (submission) =>
           // A queued message is not work in progress: nothing has it yet.
-          (submission.dispatchState === 'pending' &&
+          !continuingStructuredAgentSessionInput(journal, submission.clientMessageId) &&
+          ((submission.dispatchState === 'pending' &&
             !(submission.handoverRecorded && submission.handedOverAt === undefined)) ||
-          (submission.dispatchState === 'unknown' && submission.recovered !== true)
+            (submission.dispatchState === 'unknown' && submission.recovered !== true))
       )
     : (journal.pendingSubmissions?.().length ?? 0) > 0
 }

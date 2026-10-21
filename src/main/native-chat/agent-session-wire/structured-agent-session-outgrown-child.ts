@@ -113,8 +113,7 @@ export async function retireOutgrownStructuredAgentSessionChild(
         deps.permissionRequiresAcquisition
       ))
     ) ||
-    structuredAgentSessionChildHasOpenWork(deps.work) ||
-    owesWakeUp(session.journal, deps.work.childWork())
+    structuredAgentSessionChildOwesWork(session.journal, deps.work)
   ) {
     return
   }
@@ -125,4 +124,13 @@ export async function retireOutgrownStructuredAgentSessionChild(
       error
     })
   )
+}
+
+export function structuredAgentSessionChildOwesWork(
+  journal: Pick<AgentSessionJournal, 'newestTurn'>,
+  work: StructuredAgentSessionChildWorkReads & {
+    childWork: () => readonly AgentChildWorkView[] | undefined
+  }
+): boolean {
+  return structuredAgentSessionChildHasOpenWork(work) || owesWakeUp(journal, work.childWork())
 }

@@ -4,14 +4,50 @@
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
 
 /** The chat's journal, which identifies the conversation for as long as it is held. */
-type HandoverJournal = Pick<AgentSessionJournal, 'cursor'>
+type HandoverJournal = object
 
-const handingOver = new WeakMap<HandoverJournal, Set<string>>()
+type Handover = {
+  owner: () => void
+  unadmitted: boolean
+  signal?: AbortSignal
+  pending?: () => boolean
+}
+const handingOver = new WeakMap<HandoverJournal, Map<string, Handover>>()
 const NONE: ReadonlySet<string> = new Set()
 
 /** The sends this journal's chat is handing over now. */
 export function structuredAgentSessionHandingOver(journal: HandoverJournal): ReadonlySet<string> {
-  return handingOver.get(journal) ?? NONE
+  const sends = handingOver.get(journal)
+  return sends ? new Set(sends.keys()) : NONE
+}
+
+/** Volatile proof owned by the live handover; a crash or cancellation restores ordinary doubt. */
+export function continuingStructuredAgentSessionInput(
+  journal: HandoverJournal,
+  clientMessageId: string
+): boolean {
+  const input = handingOver.get(journal)?.get(clientMessageId)
+  return input?.unadmitted === true && input.signal?.aborted !== true && input.pending?.() === true
+}
+
+export function markStructuredAgentSessionInputUnadmitted(
+  journal: Pick<AgentSessionJournal, 'submissions'>,
+  clientMessageId: string,
+  owner: () => void,
+  unadmitted: boolean,
+  signal?: AbortSignal
+): void {
+  const input = handingOver.get(journal)?.get(clientMessageId)
+  if (input?.owner === owner) {
+    Object.assign(input, {
+      unadmitted,
+      signal,
+      pending: () =>
+        journal
+          .submissions()
+          .some((s) => s.clientMessageId === clientMessageId && s.dispatchState === 'pending')
+    })
+  }
 }
 
 /** Runs one handover with its send counted as held, from before its pending row until the adapter
@@ -38,16 +74,19 @@ export function beginStructuredAgentSessionHandover(
 ): () => void {
   let sends = handingOver.get(journal)
   if (!sends) {
-    sends = new Set()
+    sends = new Map()
     handingOver.set(journal, sends)
   }
-  sends.add(clientMessageId)
   let held = true
-  return (): void => {
+  const release = (): void => {
     if (held) {
       held = false
-      sends.delete(clientMessageId)
+      if (sends.get(clientMessageId)?.owner === release) {
+        sends.delete(clientMessageId)
+      }
       workChanged?.()
     }
   }
+  sends.set(clientMessageId, { owner: release, unadmitted: false })
+  return release
 }

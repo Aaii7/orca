@@ -1,3 +1,5 @@
+import { waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
+import type { StructuredAgentSessionAdapter } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { AgentSessionExecutionOptions } from '../../shared/agent-session-execution-options'
 import { AgentSessionOptionRejectedError } from '../native-chat/agent-session-wire/structured-agent-session-option-error'
 import { readCodexConfiguredLaunchDefaults } from './codex-configured-launch-defaults'
@@ -102,4 +104,28 @@ export async function resolvedCodexMessageOptions(
     }
   }
   return Object.fromEntries(selected.options)
+}
+
+/** Check the live binding after options settle and again whenever the provider is about to write. */
+export async function prepareCodexMessageDispatch(
+  session: CodexSession,
+  input: Parameters<StructuredAgentSessionAdapter['dispatch']>[0],
+  registered: () => boolean
+) {
+  await input.beforeDispatch?.()
+  input.signal?.throwIfAborted()
+  const turnOptions = await waitForPromiseWithSignal(
+    resolvedCodexMessageOptions(session, input.executionOptions),
+    input.signal
+  )
+  input.signal?.throwIfAborted()
+  return {
+    ...input,
+    turnOptions,
+    isCurrent: () =>
+      registered() &&
+      !session.ended &&
+      session.fence === input.fence &&
+      input.isCurrent?.() !== false
+  }
 }

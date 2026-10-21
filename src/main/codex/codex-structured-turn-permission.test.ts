@@ -39,14 +39,14 @@ it('rereads the host choice after preparation and keeps the exact configured Aut
   })
   const connection = codex.connections[0]!
   let mode: AgentChatPermissionMode = 'auto'
-  const send = (id: string, isCurrent = () => true) =>
+  const send = (id: string) =>
     adapter.dispatch({
       sessionId: 'session-1',
       clientMessageId: id,
       fence: 7,
       body: CODEX_TEST_USER_MESSAGE,
-      readPermissionMode: async () => mode,
-      isCurrent
+      admitFreshInput: async (enqueue) => enqueue(mode, false),
+      isCurrent: () => true
     })
   const end = () => {
     startTurn(connection, `fresh-${nextTurn}`)
@@ -70,8 +70,6 @@ it('rereads the host choice after preparation and keeps the exact configured Aut
     })
     end()
     mode = 'auto'
-    await adapter.preparePermissionMode('session-1', mode)
-    expect(adapter.permissionModeRequiresAcquisition('session-1', mode)).toBe(false)
     expect(await send('configured-auto')).toMatchObject({ state: 'admitted' })
     expect(connection.calls.at(-1)?.params).toMatchObject({
       approvalPolicy: 'on-request',
@@ -79,53 +77,28 @@ it('rereads the host choice after preparation and keeps the exact configured Aut
       sandboxPolicy: sandbox
     })
     end()
-    mode = 'full-access'
-    expect(await send('full')).toMatchObject({ state: 'admitted' })
-    expect(connection.calls.at(-1)?.params).toMatchObject({
-      approvalPolicy: 'never',
-      approvalsReviewer: 'user',
-      sandboxPolicy: { type: 'dangerFullAccess' }
+    codex.routes['config/read'] = () => ({
+      config: {
+        sandbox_workspace_write: {
+          ...workspace,
+          writable_roots: ['/new'],
+          network_access: false,
+          exclude_tmpdir_env_var: false,
+          exclude_slash_tmp: false
+        }
+      }
+    })
+    expect(await send('updated-config')).toMatchObject({ state: 'admitted' })
+    expect(connection.calls.at(-1)?.params?.sandboxPolicy).toEqual({
+      ...sandbox,
+      writableRoots: ['/new'],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
     })
     end()
-    const starts = connection.calls.filter((c) => c.method === 'turn/start').length
-    await expect(send('superseded', () => false)).rejects.toThrow('no longer owns')
-    expect(connection.calls.filter((c) => c.method === 'turn/start')).toHaveLength(starts)
-    expect(codex.connections).toHaveLength(1)
   } finally {
     await adapter.closeAll()
     Object.defineProperty(process, 'platform', { configurable: true, value: platform })
-  }
-})
-
-it('keeps unknown Auto acquisition-bound while a retained child cannot be replaced', async () => {
-  const codex = fakeCodexAppServer({
-    'configRequirements/read': () => ({
-      requirements: { allowedSandboxModes: ['workspace-write'] }
-    })
-  })
-  const adapter = await acquiredCodexAdapter({
-    codex,
-    settlements: [],
-    permissionMode: 'full-access'
-  })
-  try {
-    await adapter.preparePermissionMode('session-1', 'auto')
-    expect(adapter.permissionModeRequiresAcquisition('session-1', 'auto')).toBe(true)
-    expect(
-      await adapter.dispatch({
-        sessionId: 'session-1',
-        clientMessageId: 'retained',
-        fence: 7,
-        body: CODEX_TEST_USER_MESSAGE,
-        readPermissionMode: async () => 'auto'
-      })
-    ).toMatchObject({ state: 'admitted' })
-    const params = codex.connections[0]?.calls.find((c) => c.method === 'turn/start')?.params
-    expect(params).not.toHaveProperty('sandboxPolicy')
-    expect(params).not.toHaveProperty('approvalPolicy')
-    expect(params).not.toHaveProperty('approvalsReviewer')
-    expect(codex.connections).toHaveLength(1)
-  } finally {
-    await adapter.closeAll()
   }
 })

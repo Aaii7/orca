@@ -23,7 +23,9 @@ export async function readCodexAutoSandbox(
   platform: NodeJS.Platform = process.platform
 ): Promise<CodexSandboxPolicy | undefined> {
   // Windows backend availability and managed selection are not exposed by config/read.
-  if (platform === 'win32') return undefined
+  if (platform === 'win32') {
+    return undefined
+  }
   try {
     const [rawConfig, rawRequirements] = await Promise.all([
       connection.request('config/read', { cwd: input.cwd }, { timeoutMs: 2_000 }),
@@ -32,7 +34,9 @@ export async function readCodexAutoSandbox(
     const { config } = configuration.parse(rawConfig)
     const { requirements: managed } = requirements.parse(rawRequirements)
     // The requirements API omits managed profile definitions and some backend constraints.
-    if (managed !== null) return undefined
+    if (managed !== null) {
+      return undefined
+    }
     const workspace = config.sandbox_workspace_write
     return {
       type: 'workspaceWrite',

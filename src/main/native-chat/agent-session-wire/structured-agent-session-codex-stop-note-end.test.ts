@@ -1,11 +1,22 @@
+import { continuingStructuredAgentSessionInput } from './structured-agent-session-handing-over'
+import { agentSessionFailureFact } from '../../../shared/agent-session-failure'
+import { agentSessionFailureWords } from '../../../shared/agent-session-failure-words'
+import { agentJournalSubmissionKey } from '../../../shared/agent-session-journal-item-key'
+import { AgentSessionAcquisitionRefusal } from './structured-agent-session-adapter'
+import { CodexAppServerRequestError } from '../../codex/codex-app-server-connection'
+import { codexStructuredPermissionPolicy } from '../../codex/codex-structured-permission-policy'
 import type { AgentJournalRenderItem } from '../../../shared/agent-session-journal-types'
 import type { AgentSessionSubscribeEvent } from '../../../shared/agent-session-wire'
 // What a Stop's row says when Codex took the interrupt, against the real host, journal and Codex
 // adapter. Codex answers a turn's interrupt as the turn aborts and sends the turn's end right after
 // the answer, so the end reaches Orca a moment after the Stop has its answer.
 
-import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
-import { mkdtemp, rm } from 'node:fs/promises'
+import {
+  closeTestJournalHostDatabase,
+  openTestJournalHostDatabase
+} from '../agent-session-journal/journal-host-database-test-support'
+import { journalDatabasePath } from '../agent-session-journal/journal-host-database'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -34,6 +45,27 @@ import { claudeAndCodexDeclared } from './structured-agent-session-adapter-route
 
 const CALLER = { callerKey: 'client-1' }
 
+const platform = process.platform
+let retained = false
+const config = {
+  config: {
+    personality: 'friendly',
+    service_tier: 'default',
+    sandbox_workspace_write: {
+      writable_roots: ['/extra'],
+      network_access: true,
+      exclude_tmpdir_env_var: true,
+      exclude_slash_tmp: true
+    }
+  }
+}
+const sandbox = {
+  type: 'workspaceWrite',
+  writableRoots: ['/extra'],
+  networkAccess: true,
+  excludeTmpdirEnvVar: true,
+  excludeSlashTmp: true
+}
 let events: AgentSessionSubscribeEvent[]
 let unconfirmedNote: AgentJournalRenderItem | undefined
 let root: string
@@ -50,10 +82,25 @@ beforeEach(async () => {
   resetHostTestOperationIds()
   events = []
   unconfirmedNote = undefined
-  codex = fakeCodex()
+  retained = false
+  codex = fakeCodex({
+    'config/read': () => config,
+    'configRequirements/read': () => ({ requirements: null })
+  })
+  codex.routes['thread/start'] = codex.routes['thread/resume'] = (params) => ({
+    thread: { id: THREAD },
+    model: 'gpt-live',
+    reasoningEffort: 'medium',
+    sandbox:
+      params?.sandbox === 'danger-full-access'
+        ? { type: 'dangerFullAccess' }
+        : params?.sandbox === 'read-only'
+          ? { type: 'readOnly' }
+          : sandbox
+  })
   notify = (method, params) => codex.connections.at(-1)?.handlers.onNotification?.(method, params)
   turns = codexTurnLifecycleFake(THREAD, () => notify)
-  codex.routes['turn/start'] = turns.routes['turn/start']
+  Object.assign(codex.routes, turns.routes)
   codex.routes['turn/interrupt'] = () => {
     const turnId = turns.turnId
     // The answer first, then the turn's end on a later read of Codex's output.
@@ -68,6 +115,14 @@ beforeEach(async () => {
   // The runtime's wiring: an echo accepts its send, and every exit reaches the host.
   launch = {}
   adapter = adapterFor(codex, launch, [], {
+    resolveLaunch: async ({ permissionMode }) => ({
+      command: 'codex',
+      args: ['app-server'],
+      cwd: '/work/repo',
+      codexHome: null,
+      resumeThreadId: launch.resumeThreadId ?? null,
+      permissionPolicy: codexStructuredPermissionPolicy(permissionMode ?? 'ask')
+    }),
     onDispatchSettledLate: (settlement) => void host.settleLateDispatch(settlement),
     onEvent: (event) => {
       if (event.type === 'options-reported' || (event.type === 'ended' && 'cause' in event)) {
@@ -83,9 +138,15 @@ beforeEach(async () => {
     journalDatabase: openTestJournalHostDatabase(root),
     claimKeyId: 'key-1',
     mintSpawnToken: () => 'spawn-1',
-    now: () => NOW
+    now: () => NOW,
+    hasOpenDispatch: () => retained
   })
-  expect(await host.attach(CALLER, hostTestAttachParams(null))).toMatchObject({ ok: true })
+  expect(
+    await host.attach(
+      CALLER,
+      hostTestAttachParams(null, { options: { permissionMode: 'full-access' } })
+    )
+  ).toMatchObject({ ok: true })
   await host.subscribe({
     id: 'stop-note-live',
     sessionId: SESSION,
@@ -94,8 +155,11 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await adapter.closeAll()
   await host.flushAllStreamedEvents()
+  closeTestJournalHostDatabase(root)
+  Object.defineProperty(process, 'platform', { configurable: true, value: platform })
   await rm(root, { recursive: true, force: true })
 })
 
@@ -251,4 +315,400 @@ it('keeps the note unconfirmed when the turn completes', async () => {
     expect(notes).toHaveLength(1)
     expect(notes[0]?.body).toMatchObject({ failure: { kind: 'cancelUnconfirmed' } })
   })
+})
+
+function envelope(method: string, fields: Record<string, unknown>) {
+  return {
+    sessionId: SESSION,
+    clientOperationId: hostTestOperationId(),
+    expectedRuntimeFence: null,
+    payloadFingerprint: computeAgentSessionPayloadFingerprint({
+      method,
+      sessionId: SESSION,
+      fields
+    })
+  }
+}
+async function pick(value: string) {
+  const fields = { key: 'permissionMode', value }
+  expect(
+    await host.setOption(CALLER, {
+      envelope: envelope('agentSession.setOption', fields),
+      ...fields
+    })
+  ).toMatchObject({ ok: true })
+}
+async function permissionSend(text: string, options?: Record<string, string>) {
+  const fields = { body: hostTestMessage(text), ...(options ? { options } : {}) }
+  const result = await host.send(CALLER, {
+    envelope: envelope('agentSession.send', fields),
+    ...fields
+  })
+  if (!result.ok) {
+    throw new Error(JSON.stringify(result.refusal))
+  }
+  return result.value.clientMessageId
+}
+const row = async (id: string) =>
+  (await host.journalSnapshot(SESSION)).submissions.find((s) => s.clientMessageId === id)
+const starts = () =>
+  codex.connections.flatMap((c) => c.calls.filter((r) => r.method === 'turn/start'))
+async function began(id: string) {
+  await vi.waitFor(() =>
+    expect(starts().some((r) => r.params?.clientUserMessageId === id)).toBe(true)
+  )
+  turns.start()
+  turns.echo(id)
+  await vi.waitFor(async () => expect(await row(id)).toMatchObject({ dispatchState: 'accepted' }))
+}
+
+it.each(['config', 'order', 'initial'] as const)(
+  'acquires idle late Auto after the %s wait before writing once',
+  async (wait) => {
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    const paused = Promise.withResolvers<unknown>()
+    const order =
+      wait === 'order'
+        ? host.collaboratorsForTests().runtimeState.deliveryOrder.reserve(SESSION)
+        : null
+    if (wait !== 'order') {
+      codex.routes['config/read'] = () => paused.promise
+    }
+    const delivery = host.collaboratorsForTests().runtimeState.deliveryOrder
+    const entered = Promise.withResolvers<void>()
+    const beforeSend = delivery.beforeSend.bind(delivery)
+    vi.spyOn(delivery, 'beforeSend').mockImplementation((...args) => {
+      entered.resolve()
+      return beforeSend(...args)
+    })
+    const old = codex.connections[0]!
+    if (wait === 'initial') {
+      await pick('auto')
+    }
+    const id = await permissionSend('keep my words', { personality: 'friendly' })
+    if (wait === 'order') {
+      await entered.promise
+      expect(await row(id)).toMatchObject({ dispatchState: 'queued' })
+      expect(starts()).toHaveLength(0)
+    } else {
+      await vi.waitFor(() => expect(old.calls.some((r) => r.method === 'config/read')).toBe(true))
+    }
+    await pick('auto')
+    const compiling = Promise.withResolvers<unknown>()
+    codex.routes['thread/start'] = codex.routes['thread/resume'] = () => compiling.promise
+    paused.resolve(config)
+    order?.release()
+    await vi.waitFor(() => expect(codex.connections).toHaveLength(2))
+    const acquiring = codex.connections[1]!
+    await vi.waitFor(() =>
+      expect(acquiring.calls.some((r) => r.method.startsWith('thread/'))).toBe(true)
+    )
+    expect(await row(id)).toMatchObject({ dispatchState: 'pending' })
+    expect(host.currentWork(SESSION)?.owesSend((await row(id))!)).toBe(true)
+    let answered = false
+    const settled = host.waitForSendSettlement(SESSION, id).then((value) => {
+      answered = true
+      return value
+    })
+    await pick('ask')
+    compiling.resolve({
+      thread: { id: THREAD },
+      model: 'gpt-live',
+      reasoningEffort: 'medium',
+      sandbox
+    })
+    await vi.waitFor(() => expect(starts()).toHaveLength(1))
+    expect(old.calls.filter((r) => r.method === 'turn/start')).toHaveLength(0)
+    expect(acquiring.calls.find((r) => r.method.startsWith('thread/'))?.params).toMatchObject({
+      approvalPolicy: 'on-request'
+    })
+    expect(starts()[0]?.params).toMatchObject({
+      clientUserMessageId: id,
+      input: [{ type: 'text', text: 'keep my words' }],
+      personality: 'friendly',
+      approvalPolicy: 'untrusted',
+      sandboxPolicy: { type: 'readOnly' }
+    })
+    expect(answered).toBe(false)
+    turns.start()
+    turns.echo(id)
+    expect((await settled)?.value.submission).toMatchObject({ dispatchState: 'accepted', fence: 2 })
+    await vi.waitFor(() =>
+      expect(host['deps'].store.getRecord(SESSION)?.options).toMatchObject({
+        model: 'gpt-live',
+        effort: 'medium'
+      })
+    )
+  }
+)
+
+it.each(['ask', 'auto', 'empty'] as const)(
+  'refreshes stopped words after refused steering with %s, including replacement',
+  async (mode) => {
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    const journal = host.collaboratorsForTests().sessions.get(SESSION)!.journal
+    const running = await permissionSend('running')
+    await began(running)
+    const stopped = 'stopped-words'
+    await journal.appendSubmission({
+      clientMessageId: stopped,
+      payloadFingerprint: 'stopped',
+      body: hostTestMessage('words that were not delivered'),
+      fence: 1,
+      source: { kind: 'user' }
+    })
+    await journal.resolveDispatch({
+      clientMessageId: stopped,
+      state: 'rejected',
+      fence: 1,
+      ...agentSessionFailureWords(
+        agentSessionFailureFact('cancelled', { neverReachedAgent: true }),
+        { surface: 'rejection' }
+      )
+    })
+    const refusal = Promise.withResolvers<unknown>()
+    codex.routes['turn/steer'] = () => refusal.promise
+    const id = await permissionSend('follow up')
+    await vi.waitFor(() =>
+      expect(codex.connections[0]?.calls.some((r) => r.method === 'turn/steer')).toBe(true)
+    )
+    await pick(mode === 'empty' ? 'ask' : mode)
+    if (mode === 'empty') {
+      await journal.resolveDispatch({
+        clientMessageId: id,
+        state: 'pending',
+        fence: 1,
+        turnScope: { kind: 'thread' },
+        carries: [stopped]
+      })
+      await journal.resolveDispatch({
+        clientMessageId: stopped,
+        state: 'accepted',
+        fence: 1,
+        providerIdentity: null
+      })
+    }
+    turns.end('completed')
+    await host.flushStreamedEvents(SESSION)
+    refusal.reject(
+      new CodexAppServerRequestError('turn/steer', -32600, 'no active turn', 'no active turn')
+    )
+    await vi.waitFor(() => expect(starts()).toHaveLength(2))
+    expect(codex.connections).toHaveLength(mode === 'auto' ? 2 : 1)
+    expect(starts()[1]?.params).toMatchObject({ clientUserMessageId: id })
+    expect(
+      JSON.stringify(starts()[1]?.params?.input).includes('words that were not delivered')
+    ).toBe(mode !== 'empty')
+    expect(journal.stoppedHistoryCarried().get(id)).toEqual(
+      mode === 'empty' ? undefined : [stopped]
+    )
+    const item = journal
+      .snapshot()
+      .items.find((item) => item.itemId === agentJournalSubmissionKey(id))
+    expect(item?.turnScope).toEqual({ kind: 'thread' })
+    expect(journal.itemBody(agentJournalSubmissionKey(id))).toEqual(hostTestMessage('follow up'))
+  }
+)
+
+it('preserves successful steering and only current retained work can inherit unknown Auto', async () => {
+  Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+  const running = await permissionSend('running')
+  await began(running)
+  await pick('auto')
+  const steer = await permissionSend('steer')
+  await vi.waitFor(() =>
+    expect(codex.connections[0]?.calls.some((r) => r.method === 'turn/steer')).toBe(true)
+  )
+  turns.echo(steer)
+  turns.end('completed')
+  await host.flushStreamedEvents(SESSION)
+  retained = true
+  const busy = await permissionSend('work still held elsewhere')
+  await vi.waitFor(() => expect(starts()).toHaveLength(2))
+  expect(starts()[1]?.params).not.toHaveProperty('sandboxPolicy')
+  expect(codex.connections).toHaveLength(1)
+  await began(busy)
+  turns.end('completed')
+  await host.flushStreamedEvents(SESSION)
+  retained = false
+  const idle = await permissionSend('now idle')
+  await vi.waitFor(() => expect(starts()).toHaveLength(3))
+  expect(codex.connections).toHaveLength(2)
+  expect(starts()[2]?.params).toMatchObject({ clientUserMessageId: idle, sandboxPolicy: sandbox })
+})
+
+it.each([
+  'stop',
+  'exit',
+  'crash',
+  'refusal',
+  'unproven-exit',
+  'lost-reply',
+  'lost-steer',
+  'post-write-stop'
+] as const)('bounds %s without replaying possibly written input', async (failure) => {
+  Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+  const uncertain = failure.startsWith('lost-') || failure === 'post-write-stop'
+  const journal = host.collaboratorsForTests().sessions.get(SESSION)!.journal
+  if (failure === 'lost-steer') {
+    await began(await permissionSend('running'))
+  }
+  const paused = Promise.withResolvers<unknown>()
+  codex.routes['config/read'] = () => paused.promise
+  const id = await permissionSend('preserve me', { personality: 'friendly' })
+  await vi.waitFor(() =>
+    expect(codex.connections[0]?.calls.some((r) => r.method === 'config/read')).toBe(true)
+  )
+  await pick('auto')
+  if (failure === 'refusal') {
+    codex.routes['thread/start'] = codex.routes['thread/resume'] = () => {
+      throw new AgentSessionAcquisitionRefusal('missing Codex', 'cliMissing')
+    }
+  }
+  if (failure === 'lost-reply' || failure === 'lost-steer') {
+    codex.routes[failure === 'lost-steer' ? 'turn/steer' : 'turn/start'] = () => {
+      throw new CodexAppServerTimeoutError('lost turn reply')
+    }
+  }
+  if (failure === 'unproven-exit') {
+    vi.spyOn(adapter, 'close').mockResolvedValue(false)
+  }
+  const lost = Promise.withResolvers<unknown>()
+  if (failure === 'post-write-stop') {
+    codex.routes['turn/start'] = () => lost.promise
+  }
+  paused.resolve(config)
+  if (failure === 'post-write-stop') {
+    await vi.waitFor(() => expect(starts()).toHaveLength(1))
+    const stopped = stop()
+    lost.reject(new CodexAppServerTimeoutError('lost reply after Stop'))
+    await stopped
+  }
+  if (failure === 'stop' || failure === 'exit' || failure === 'crash') {
+    codex.routes['thread/start'] = codex.routes['thread/resume'] = () =>
+      Promise.withResolvers().promise
+    await vi.waitFor(() => expect(codex.connections).toHaveLength(2))
+    if (failure === 'crash') {
+      await vi.waitFor(() => expect(continuingStructuredAgentSessionInput(journal, id)).toBe(true))
+      expect(await row(id)).toMatchObject({ dispatchState: 'pending' })
+      const snapshotRoot = join(root, 'crash')
+      await mkdir(snapshotRoot)
+      await openTestJournalHostDatabase(root).db.backup(journalDatabasePath(snapshotRoot))
+      const fresh = fakeCodex()
+      const restartedAdapter = adapterFor(fresh)
+      const restarted = new StructuredAgentSessionHost({
+        ...host['deps'],
+        adapter: restartedAdapter,
+        store: await openTestAgentSessionRecordStore(snapshotRoot),
+        journalDatabase: openTestJournalHostDatabase(snapshotRoot),
+        probeOwner: async () => ({ outcome: 'pid-absent' })
+      })
+      try {
+        await restarted.restoreReadableSessions()
+        const recovered = await restarted.journalSnapshot(SESSION)
+        const reopened = restarted.collaboratorsForTests().sessions.get(SESSION)!.journal
+        expect(reopened).not.toBe(journal)
+        expect(continuingStructuredAgentSessionInput(reopened, id)).toBe(false)
+        expect(recovered.submissions.find((s) => s.clientMessageId === id)).toMatchObject({
+          dispatchState: 'unknown',
+          recovered: true
+        })
+        expect(fresh.connections).toHaveLength(0)
+      } finally {
+        await restarted.flushAllStreamedEvents()
+        await restartedAdapter.closeAll()
+        closeTestJournalHostDatabase(snapshotRoot)
+      }
+    }
+    if (failure === 'exit') {
+      codex.connections[1]?.handlers.onExit?.(new Error('Codex died before ready'), {
+        expected: false
+      })
+    } else {
+      expect(await stop()).toMatchObject({ ok: true })
+    }
+  }
+  await vi.waitFor(async () =>
+    expect((await row(id))?.dispatchState).toBe(uncertain ? 'unknown' : 'rejected')
+  )
+  if (failure === 'unproven-exit') {
+    expect((await row(id))?.rejection?.kind).toBe('previousExitUnverifiable')
+  }
+  expect(continuingStructuredAgentSessionInput(journal, id)).toBe(false)
+  expect(starts()).toHaveLength(uncertain ? 1 : 0)
+  expect(codex.connections).toHaveLength(
+    failure === 'lost-steer' || failure === 'unproven-exit' ? 1 : 2
+  )
+})
+
+it.each([
+  'queue-stop',
+  'queue-close',
+  'queue-quit',
+  'pending-stop',
+  'pending-close',
+  'pending-quit',
+  'pending-exit'
+] as const)('keeps input unwritten across %s at final admission', async (boundary) => {
+  const { sessions, conversationDelivery, serialize } = host.collaboratorsForTests()
+  const journal = sessions.get(SESSION)!.journal
+  const paused = Promise.withResolvers<unknown>()
+  const held = Promise.withResolvers<void>()
+  const entered = Promise.withResolvers<void>()
+  codex.routes['config/read'] = () => paused.promise
+  const id = await permissionSend('do not write after cancellation', { personality: 'friendly' })
+  await vi.waitFor(() =>
+    expect(codex.connections[0]?.calls.some((r) => r.method === 'config/read')).toBe(true)
+  )
+  const settled = host.waitForSendSettlement(SESSION, id)
+  const resolve = journal.resolveDispatch.bind(journal)
+  const deps = conversationDelivery.loop['deps']
+  const ordered = deps.serialize
+  const blocking = boundary.startsWith('queue-')
+    ? serialize(SESSION, () => held.promise)
+    : Promise.resolve()
+  if (boundary.startsWith('queue-')) {
+    vi.spyOn(deps, 'serialize').mockImplementation((sessionId, task) => {
+      entered.resolve()
+      return ordered(sessionId, task)
+    })
+  } else {
+    vi.spyOn(journal, 'resolveDispatch').mockImplementation(async (...args) => {
+      if (args[0].state === 'pending') {
+        entered.resolve()
+        await held.promise
+      }
+      return resolve(...args)
+    })
+  }
+  try {
+    paused.resolve(config)
+    await entered.promise
+    const stopping = boundary.endsWith('exit')
+      ? Promise.resolve(
+          codex.connections[0]?.handlers.onExit?.(new Error('Codex exited before input'), {
+            expected: false
+          })
+        )
+      : boundary.endsWith('quit')
+        ? host.flushAllStreamedEvents()
+        : boundary.endsWith('close')
+          ? host.close(SESSION, 'user-close')
+          : stop()
+    expect(starts()).toHaveLength(0)
+    held.resolve()
+    await blocking
+    await stopping
+    expect((await settled)?.value.submission).toMatchObject({ dispatchState: 'rejected' })
+    const snapshot = await host.journalSnapshot(SESSION)
+    await vi.waitFor(async () => expect((await row(id))?.dispatchState).toBe('rejected'))
+    expect(snapshot.submissions.find((s) => s.clientMessageId === id)?.reason).not.toContain(
+      'owns its provider child'
+    )
+    expect(starts()).toHaveLength(0)
+    expect(continuingStructuredAgentSessionInput(journal, id)).toBe(false)
+  } finally {
+    held.resolve()
+    vi.restoreAllMocks()
+  }
 })

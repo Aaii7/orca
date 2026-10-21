@@ -1,3 +1,4 @@
+import { continuingStructuredAgentSessionInput } from './structured-agent-session-handing-over'
 import { currentRequestsProjection } from './agent-session-current-requests'
 // The host's one operational projection of a chat's current work: the live generation's running
 // turn, the prompts it raised that still wait on the person, the sends it owes, and the queued
@@ -180,9 +181,10 @@ export class StructuredAgentSessionCurrentWork {
   /** Handed to the live generation and neither answered nor refused. */
   private unanswered(submission: AgentJournalSubmission): boolean {
     return (
-      !isQueuedAgentJournalSubmission(submission) &&
-      this.liveFence !== null &&
-      isUnansweredStructuredAgentSessionDispatch(submission, this.liveFence)
+      continuingStructuredAgentSessionInput(this.journal, submission.clientMessageId) ||
+      (!isQueuedAgentJournalSubmission(submission) &&
+        this.liveFence !== null &&
+        isUnansweredStructuredAgentSessionDispatch(submission, this.liveFence))
     )
   }
 

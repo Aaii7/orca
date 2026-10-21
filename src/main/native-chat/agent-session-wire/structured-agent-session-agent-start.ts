@@ -1,3 +1,4 @@
+import { continuingStructuredAgentSessionInput } from './structured-agent-session-handing-over'
 // Giving a session its provider child back.
 //
 // Only work starts one: the delivery loop for a queued message, and the few operations that need
@@ -78,7 +79,9 @@ export function claimStructuredAgentSessionAgent(
       .submissions()
       .some(
         (submission) =>
-          submission.clientMessageId === startedFor && isQueuedAgentJournalSubmission(submission)
+          submission.clientMessageId === startedFor &&
+          (isQueuedAgentJournalSubmission(submission) ||
+            continuingStructuredAgentSessionInput(session.journal, startedFor))
       )
   ) {
     return { outcome: Promise.resolve({ ok: false, aborted: true, refusal: startFailedRefusal() }) }

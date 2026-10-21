@@ -1,3 +1,9 @@
+import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
+import {
+  StructuredAgentSessionInputNotAdmitted,
+  type StructuredAgentSessionAdmitFreshInput,
+  type StructuredAgentSessionInputAdmission
+} from '../native-chat/agent-session-wire/structured-agent-session-input-admission'
 import type { AgentChatPermissionMode } from '../../shared/agent-chat-permission-mode'
 import type { CodexSession } from './codex-structured-session-state'
 import { readCodexAutoSandbox } from './codex-structured-auto-sandbox'
@@ -15,7 +21,9 @@ export async function prepareCodexTurnPermission(
   mode: AgentChatPermissionMode
 ): Promise<void> {
   const state = session.permissions
-  if (!state) return
+  if (!state) {
+    return
+  }
   const auto =
     mode !== 'auto'
       ? undefined
@@ -41,7 +49,8 @@ export function codexPermissionRequiresAcquisition(
 
 export function codexTurnPermission(
   session: PermissionHost,
-  mode: AgentChatPermissionMode
+  mode: AgentChatPermissionMode,
+  inheritRunning = false
 ): { approvalPolicy?: string; approvalsReviewer?: string; sandboxPolicy?: CodexSandboxPolicy } {
   const state = session.permissions
   const { approvalPolicy, approvalsReviewer, sandbox } = codexStructuredPermissionPolicy(mode)
@@ -52,7 +61,53 @@ export function codexTurnPermission(
         ? { type: 'dangerFullAccess' }
         : state?.preparedAuto
   // Unknown Auto retains the running child's grant until safe reacquisition; never invent access.
-  if (mode === 'auto' && codexPermissionRequiresAcquisition(session, mode)) return {}
-  if (state && sandboxPolicy && mode !== state.acquiredMode) state.launchSandboxIntact = false
+  if (mode === 'auto' && codexPermissionRequiresAcquisition(session, mode)) {
+    if (inheritRunning) {
+      return {}
+    }
+    throw new Error('Auto policy requires acquisition')
+  }
+  if (state && sandboxPolicy && mode !== state.acquiredMode) {
+    state.launchSandboxIntact = false
+  }
   return { approvalPolicy, approvalsReviewer, ...(sandboxPolicy ? { sandboxPolicy } : {}) }
+}
+
+/** Preparation is frame-local; only the final host callback decides and synchronously writes. */
+export async function admitCodexTurnPermission(
+  session: PermissionHost,
+  admit: StructuredAgentSessionAdmitFreshInput | undefined,
+  write: (
+    permission: ReturnType<typeof codexTurnPermission>,
+    body?: AgentJournalMessageItem
+  ) => Extract<StructuredAgentSessionInputAdmission, { kind: 'sent' }>
+): Promise<unknown> {
+  let prepared = false
+  const enqueue: Parameters<StructuredAgentSessionAdmitFreshInput>[0] = (
+    mode,
+    inheritRunning,
+    body
+  ) => {
+    if (mode === 'auto' && !prepared) {
+      return { kind: 'prepare' }
+    }
+    if (codexPermissionRequiresAcquisition(session, mode) && !inheritRunning) {
+      return { kind: 'acquire' }
+    }
+    return write(codexTurnPermission(session, mode, inheritRunning), body)
+  }
+  for (;;) {
+    const admission = admit
+      ? await admit(enqueue)
+      : enqueue(session.permissions?.acquiredMode ?? 'ask', false)
+    if (admission.kind === 'prepare') {
+      await prepareCodexTurnPermission(session, 'auto')
+      prepared = true
+      continue
+    }
+    if (admission.kind === 'acquire') {
+      throw new StructuredAgentSessionInputNotAdmitted()
+    }
+    return admission.response
+  }
 }
