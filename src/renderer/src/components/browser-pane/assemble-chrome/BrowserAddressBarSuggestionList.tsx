@@ -90,7 +90,7 @@ export default function BrowserAddressBarSuggestionList({
               {isRemovableHistoryRow(entry) ? (
                 // Why: hidden until the row is hovered or arrowed to, like Chrome's row X; cmdk
                 // marks both as selected.
-                <span className="shrink-0 text-muted-foreground opacity-0 in-data-[selected=true]:opacity-100">
+                <span className="shrink-0 text-muted-foreground opacity-0 [[data-selected=true]_&]:opacity-100">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

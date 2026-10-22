@@ -1,6 +1,5 @@
 import { useDeferredValue, useMemo, useRef, useState } from 'react'
 import { FileText, Trash2, X } from 'lucide-react'
-import { toast } from 'sonner'
 import { BrowserFavicon } from '@/components/browser-favicon'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +22,7 @@ import { FooterKey } from '@/components/worktree-jump-palette-primitives'
 import { getIntlLocale, translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { BrowserPageDocLocation } from '../../../../../shared/browser-workspace-types'
+import type { RemovedBrowserHistory } from '@/store/slices/browser/browser-slice-contract'
 import type { BrowserAddressBarSuggestion } from '../assemble-chrome/browser-address-bar-suggestions'
 import {
   isRemoveRowShortcut,
@@ -105,6 +105,8 @@ function BrowserHistoryDialogContent({
   const restoreBrowserHistory = useAppStore((s) => s.restoreBrowserHistory)
   const removeHistoryRow = useRemoveHistoryRow()
   const [query, setQuery] = useState('')
+  // Why in the footer and not a toast: the modal overlay covers the app's toaster.
+  const [cleared, setCleared] = useState<RemovedBrowserHistory | null>(null)
   const [selectedKey, setSelectedKey] = useState('')
   const deferredQuery = useDeferredValue(query)
   const [now] = useState(() => Date.now())
@@ -133,12 +135,7 @@ function BrowserHistoryDialogContent({
     if (removed.browserUrlHistory.length === 0 && removed.workspaceDocHistory.length === 0) {
       return
     }
-    toast(translate('browser.history.cleared', 'Cleared browsing history'), {
-      action: {
-        label: translate('browser.newTab.undo', 'Undo'),
-        onClick: () => restoreBrowserHistory(removed)
-      }
-    })
+    setCleared(removed)
   }
 
   const hasHistory = browserUrlHistory.length > 0 || workspaceDocHistory.length > 0
@@ -211,7 +208,7 @@ function BrowserHistoryDialogContent({
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                   {timeFormat.format(row.lastVisitedAt)}
                 </span>
-                <span className="shrink-0 text-muted-foreground opacity-0 in-data-[selected=true]:opacity-100">
+                <span className="shrink-0 text-muted-foreground opacity-0 [[data-selected=true]_&]:opacity-100">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -238,24 +235,40 @@ function BrowserHistoryDialogContent({
         ))}
       </CommandList>
       <div className="flex items-center justify-between border-t border-border/60 px-3.5 py-2 text-2xs text-muted-foreground">
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="xs" disabled={!hasHistory}>
-              <Trash2 />
-              {translate('browser.history.clear', 'Clear browsing history')}
+        {cleared ? (
+          <div className="flex items-center gap-2">
+            <span>{translate('browser.history.cleared', 'Cleared browsing history')}</span>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                restoreBrowserHistory(cleared)
+                setCleared(null)
+              }}
+            >
+              {translate('browser.newTab.undo', 'Undo')}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top">
-            <DropdownMenuLabel>
-              {translate('browser.history.clearRange', 'Clear history from')}
-            </DropdownMenuLabel>
-            {CLEAR_RANGES.map((range) => (
-              <DropdownMenuItem key={range} onSelect={() => clear(range)}>
-                {clearRangeLabel(range)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+        ) : (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="xs" disabled={!hasHistory}>
+                <Trash2 />
+                {translate('browser.history.clear', 'Clear browsing history')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top">
+              <DropdownMenuLabel>
+                {translate('browser.history.clearRange', 'Clear history from')}
+              </DropdownMenuLabel>
+              {CLEAR_RANGES.map((range) => (
+                <DropdownMenuItem key={range} onSelect={() => clear(range)}>
+                  {clearRangeLabel(range)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <div className="flex items-center gap-2">
           <FooterKey>{translate('browser.history.enterKey', 'Enter')}</FooterKey>
           <span>{translate('browser.history.open', 'Open')}</span>
