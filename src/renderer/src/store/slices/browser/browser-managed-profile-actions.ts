@@ -29,6 +29,19 @@ export function createBrowserManagedProfileActions(
         get().switchBrowserTabProfile(tab.id, toId)
       }
     }
+    // Why: a tab closed while it waited would otherwise reopen on an id main never made.
+    set((s) => ({
+      recentlyClosedBrowserTabsByWorktree: Object.fromEntries(
+        Object.entries(s.recentlyClosedBrowserTabsByWorktree).map(([worktreeId, closed]) => [
+          worktreeId,
+          closed.map((entry) =>
+            entry.workspace.sessionProfileId === fromId
+              ? { ...entry, workspace: { ...entry.workspace, sessionProfileId: toId } }
+              : entry
+          )
+        ])
+      )
+    }))
   }
 
   return {

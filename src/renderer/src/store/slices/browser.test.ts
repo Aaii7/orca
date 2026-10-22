@@ -313,6 +313,8 @@ describe('createBrowserSlice annotations', () => {
       { kind: 'repo', id: 'repo-b' }
     ])
     expect(store.getState().managedBrowserProfileStatusById[placeholderId]).toBe('pending')
+    store.getState().closeBrowserTab(sibling.id)
+    await main.settle()
 
     const profile: BrowserSessionProfile = {
       id: 'minted-by-main',
@@ -326,6 +328,9 @@ describe('createBrowserSlice annotations', () => {
     await vi.waitFor(() =>
       expect(store.getState().managedBrowserProfileStatusById[placeholderId]).toBeUndefined()
     )
+    // A tab closed while it waited reopens on the profile main made, not the placeholder.
+    expect(store.getState().reopenClosedBrowserTab('repo-a::/a/two')).not.toBeNull()
+    await main.settle()
     const repoATabs = ['repo-a::/a/one', 'repo-a::/a/two'].flatMap(
       (worktreeId) => store.getState().browserTabsByWorktree[worktreeId] ?? []
     )
