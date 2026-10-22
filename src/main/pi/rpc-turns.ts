@@ -114,7 +114,7 @@ export class PiRpcTurns {
         }
         return
       case 'agent_start': {
-        // Extensions can start a run on an idle session (a subagent waking its parent).
+        // A run Pi starts while idle (an extension wake) opens with its own prompt.
         const idle = !this.active
         this.touch()
         this.open(at)
