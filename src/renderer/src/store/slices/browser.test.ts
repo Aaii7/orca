@@ -4,6 +4,8 @@ import { GRAB_BUDGET, type BrowserPageAnnotation } from '../../../../shared/brow
 import { makeAnnotation } from './browser-annotation-test-fixture'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import type { BrowserSessionProfile } from '../../../../shared/browser-workspace-types'
+import type { ManagedBrowserProfileOwner } from '../../../../shared/browser-profile-scope'
 import { layoutApplyTestTransport } from '@/runtime/layout-apply-test-transport.test-fixture'
 import {
   createBrowserMockApi,
@@ -281,6 +283,65 @@ describe('createBrowserSlice annotations', () => {
 
     expect(localFallback.sessionProfileId).toBe('local-profile')
     expect(remoteTab.sessionProfileId).toBe('runtime-profile')
+  })
+
+  it('gives each repo its own profile under the per-repo scope and holds pages until main has it', async () => {
+    const ensured = new Map<string, (profile: BrowserSessionProfile) => void>()
+    const ensureMock = vi.fn(
+      ({ owner }: { owner: ManagedBrowserProfileOwner }) =>
+        new Promise<BrowserSessionProfile>((resolve) => ensured.set(owner.id, resolve))
+    )
+    Object.assign(mockApi.browser, { sessionEnsureManagedProfile: ensureMock })
+    const { store, main } = await createTestStoreDrawnFromMain({
+      repos: [],
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the browser keys are read.
+      settings: { browserProfileScope: 'repo' } as AppState['settings'],
+      defaultBrowserSessionProfileId: 'user-default'
+    })
+
+    const first = store.getState().createBrowserTab('repo-a::/a/one', 'about:blank')
+    const sibling = store.getState().createBrowserTab('repo-a::/a/two', 'about:blank')
+    const other = store.getState().createBrowserTab('repo-b::/b/one', 'about:blank')
+    await main.settle()
+
+    expect(first.sessionProfileId).toBe(sibling.sessionProfileId)
+    expect(other.sessionProfileId).not.toBe(first.sessionProfileId)
+    expect(first.sessionProfileId).not.toBe('user-default')
+    expect(ensureMock.mock.calls.map(([args]) => args.owner)).toEqual([
+      { kind: 'repo', id: 'repo-a' },
+      { kind: 'repo', id: 'repo-b' }
+    ])
+    const firstProfileId = first.sessionProfileId ?? ''
+    expect(store.getState().managedBrowserProfileStatusById[firstProfileId]).toBe('pending')
+
+    const profile: BrowserSessionProfile = {
+      id: firstProfileId,
+      scope: 'isolated',
+      partition: `persist:orca-browser-session-${firstProfileId}`,
+      label: 'Repo: repo-a',
+      source: null
+    }
+    ensured.get('repo-a')?.(profile)
+    await vi.waitFor(() =>
+      expect(store.getState().managedBrowserProfileStatusById[firstProfileId]).toBeUndefined()
+    )
+    expect(store.getState().browserSessionProfilesByHostId.local).toEqual([profile])
+
+    store.getState().createBrowserTab('repo-a::/a/three', 'about:blank')
+    expect(ensureMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the shared default profile under the shared scope', async () => {
+    const { store, main } = await createTestStoreDrawnFromMain({
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the browser keys are read.
+      settings: { browserProfileScope: 'shared' } as AppState['settings'],
+      defaultBrowserSessionProfileId: 'user-default'
+    })
+
+    const tab = store.getState().createBrowserTab('repo-a::/a/one', 'about:blank')
+    await main.settle()
+
+    expect(tab.sessionProfileId).toBe('user-default')
   })
 
   it('preserves browser map references when a page-state update is unchanged', async () => {

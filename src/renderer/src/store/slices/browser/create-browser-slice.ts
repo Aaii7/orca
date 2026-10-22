@@ -32,6 +32,7 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
   pendingAddressBarFocusByPageId: {},
   browserSessionProfiles: [],
   browserSessionProfilesByHostId: {},
+  managedBrowserProfileStatusById: {},
   browserSessionHostIdOverride: null,
   browserSessionImportState: null,
   browserUrlHistory: [],

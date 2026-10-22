@@ -17,6 +17,7 @@ import {
   findWorkspace
 } from '../browser-page-records'
 import { getBrowserSessionProfileHostId } from './browser-host-state'
+import { resolveNewBrowserTabProfileId } from './browser-new-tab-profile'
 import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { admitBrowserPageMount } from '@/components/browser-pane/host-guest/browser-page-mount-admission'
 import {
@@ -67,17 +68,19 @@ export function createBrowserTabActions(
       if (!options?.browserRuntimeEnvironmentId && !options?.docLocation) {
         admitBrowserPageMount(page.id)
       }
-      // Why: with no explicit profile, inherit the user's default so a Settings preference applies to new tabs.
+      // Why: with no explicit profile, Settings decides, so the profile scope applies to every way a tab opens.
       const sessionProfileId =
         options?.sessionProfileId !== undefined
           ? options.sessionProfileId
-          : (get().defaultBrowserSessionProfileIdByHostId[
+          : resolveNewBrowserTabProfileId(
+              get(),
+              worktreeId,
               getBrowserSessionProfileHostId(
                 get(),
                 worktreeId,
                 options?.browserRuntimeEnvironmentId
               )
-            ] ?? get().defaultBrowserSessionProfileId)
+            )
       const browserTab = buildWorkspaceFromPage(
         workspaceId,
         worktreeId,

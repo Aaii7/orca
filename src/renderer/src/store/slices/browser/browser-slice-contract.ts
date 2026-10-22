@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import type { ManagedBrowserProfileOwner } from '../../../../../shared/browser-profile-scope'
 import type { AppState } from '../../types'
 import type {
   BrowserCertificateFailure,
@@ -239,6 +240,12 @@ export type BrowserSlice = {
     label: string
   ) => Promise<BrowserSessionProfile | null>
   deleteBrowserSessionProfile: (profileId: string) => Promise<boolean>
+  /** Names a repo's or workspace's own local profile at once and creates it in main on first use. */
+  ensureManagedBrowserSessionProfile: (owner: ManagedBrowserProfileOwner, label: string) => string
+  /** A removed repo's or workspace's own profile goes with it, whichever host ran the removal. */
+  deleteManagedBrowserSessionProfile: (owner: ManagedBrowserProfileOwner) => Promise<void>
+  /** Managed profiles main has not finished creating; their pages must not mount on any other partition. */
+  managedBrowserProfileStatusById: Record<string, 'pending' | 'failed'>
   importCookiesToProfile: (profileId: string) => Promise<BrowserCookieImportExecutionResult>
   clearBrowserSessionImportState: () => void
   detectedBrowsers: {

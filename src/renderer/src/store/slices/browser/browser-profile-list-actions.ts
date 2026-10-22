@@ -5,7 +5,8 @@ import type {
   BrowserProfileDeleteResult,
   BrowserProfileListResult
 } from '../../../../../shared/runtime-types'
-import { parseExecutionHostId } from '../../../../../shared/execution-host'
+import { LOCAL_EXECUTION_HOST_ID, parseExecutionHostId } from '../../../../../shared/execution-host'
+import { getManagedBrowserProfileId } from '../../../../../shared/browser-profile-scope'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import {
   getBrowserProfilesForHost,
@@ -20,9 +21,69 @@ export function createBrowserProfileListActions(
   get: BrowserSliceGet
 ): Pick<
   BrowserSlice,
-  'fetchBrowserSessionProfiles' | 'createBrowserSessionProfile' | 'deleteBrowserSessionProfile'
+  | 'fetchBrowserSessionProfiles'
+  | 'createBrowserSessionProfile'
+  | 'deleteBrowserSessionProfile'
+  | 'ensureManagedBrowserSessionProfile'
+  | 'deleteManagedBrowserSessionProfile'
 > {
+  const setManagedProfileStatus = (profileId: string, status: 'pending' | 'failed' | null): void =>
+    set((s) => {
+      const { [profileId]: _previous, ...rest } = s.managedBrowserProfileStatusById
+      return { managedBrowserProfileStatusById: status ? { ...rest, [profileId]: status } : rest }
+    })
+
   return {
+    ensureManagedBrowserSessionProfile: (owner, label) => {
+      const profileId = getManagedBrowserProfileId(owner)
+      if (
+        get().managedBrowserProfileStatusById[profileId] === 'pending' ||
+        getBrowserProfilesForHost(get(), LOCAL_EXECUTION_HOST_ID).some((p) => p.id === profileId)
+      ) {
+        return profileId
+      }
+      setManagedProfileStatus(profileId, 'pending')
+      window.api.browser.sessionEnsureManagedProfile({ owner, label }).then(
+        (profile) => {
+          if (!profile) {
+            setManagedProfileStatus(profileId, 'failed')
+            return
+          }
+          set((s) =>
+            profileListByHostUpdate(
+              s,
+              [
+                ...getBrowserProfilesForHost(s, LOCAL_EXECUTION_HOST_ID).filter(
+                  (existing) => existing.id !== profile.id
+                ),
+                profile
+              ],
+              LOCAL_EXECUTION_HOST_ID
+            )
+          )
+          setManagedProfileStatus(profileId, null)
+        },
+        () => setManagedProfileStatus(profileId, 'failed')
+      )
+      return profileId
+    },
+
+    deleteManagedBrowserSessionProfile: async (owner) => {
+      const profileId = getManagedBrowserProfileId(owner)
+      try {
+        await window.api.browser.sessionDeleteProfile({ profileId })
+      } catch {
+        // Why: best-effort; a profile that outlives its workspace only costs disk until deleted in Settings.
+      }
+      set((s) =>
+        profileListByHostUpdate(
+          s,
+          getBrowserProfilesForHost(s, LOCAL_EXECUTION_HOST_ID).filter((p) => p.id !== profileId),
+          LOCAL_EXECUTION_HOST_ID
+        )
+      )
+    },
+
     fetchBrowserSessionProfiles: async (requestedHostId) => {
       const hostId = requestedHostId ?? getBrowserSettingsHostId(get())
       const parsedHostId = parseExecutionHostId(hostId)
