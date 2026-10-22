@@ -16,7 +16,7 @@ export type MarkupOverlayProps = {
   busy: boolean
   onComplete: (input: { imageElement: HTMLImageElement; shapes: MarkupShape[] }) => void
   onCancel: () => void
-  /** Scroll container around the page box; the controls sit sticky below the page instead of over it. */
+  /** Element outside the page box that hosts the controls as a footer instead of over the page. */
   controlsContainer?: HTMLElement | null
 }
 
@@ -43,11 +43,13 @@ export function MarkupOverlay({
   const controls = (
     <div
       className={cn(
-        'pointer-events-none flex flex-col items-center gap-2 px-3',
-        controlsContainer ? 'sticky bottom-0 left-0 z-30 py-3' : 'absolute inset-x-0 bottom-3'
+        'flex flex-col items-center gap-2 px-3',
+        controlsContainer
+          ? 'shrink-0 bg-background py-3'
+          : 'pointer-events-none absolute inset-x-0 bottom-3'
       )}
     >
-      {/* Why: cap at the overlay width so the toolbar wraps in a narrow viewport instead of clipping. */}
+      {/* Why: cap at the available width so the toolbar wraps in a narrow viewport instead of clipping. */}
       <div className="pointer-events-auto max-w-full">
         <MarkupToolbar
           tool={editor.tool}

@@ -387,8 +387,10 @@ export function BrowserPagePane({
               isBlankTab={isBlankTab}
               containerRef={containerRef}
               markupPortalContainer={pageViewport?.content ?? null}
-              // Why: only a preset leaves room around the page box for the controls to sit outside it.
-              markupControlsContainer={browserTab.viewportPresetId ? pageViewportScroller : null}
+              // Why: a preset page box keeps its size, so a footer below it can take pane height without relayout.
+              markupControlsContainer={
+                browserTab.viewportPresetId ? (pageViewport?.shell ?? null) : null
+              }
               browserOverlayViewport={browserOverlayViewport}
               worktreeId={worktreeId}
               grab={grab}
