@@ -7,7 +7,7 @@ import { agentJournalSubmissionKey } from '../../../shared/agent-session-journal
 import { isRootAgentJournalItem } from '../../../shared/agent-session-journal-producer'
 import { readAgentJournalTurn } from '../../../shared/agent-session-turn-record'
 import { readAgentSessionFailureFact } from '../../../shared/agent-session-failure'
-import type { StructuredAgentSessionLatestRequest } from '../../../shared/structured-agent-session-latest-request'
+import type { StructuredAgentSessionRequestFailure } from '../../native-chat/agent-session-wire/structured-agent-session-request-failures'
 
 export type ChatRequestError = {
   text: string
@@ -36,7 +36,7 @@ export function isSenderOwnRejection(error: ChatRequestError | null): boolean {
  *  refused send from a host that recorded no reason. */
 export function chatRequestError(
   snapshot: Pick<AgentJournalSnapshot, 'items' | 'submissions'>,
-  request: Pick<StructuredAgentSessionLatestRequest, 'kind' | 'id'>
+  request: Pick<StructuredAgentSessionRequestFailure, 'kind' | 'id'>
 ): ChatRequestError | null {
   if (request.kind === 'refused-send') {
     const submission = snapshot.submissions.find(
@@ -50,33 +50,50 @@ export function chatRequestError(
   }
   const items = snapshot.items
   const start = items.findIndex(
-    (item) => isRootAgentJournalItem(item) && readAgentJournalTurn(item.body)?.turnId === request.id
+    (item) =>
+      isRootAgentJournalItem(item) &&
+      item.itemId === request.id &&
+      readAgentJournalTurn(item.body) !== null
   )
   if (start === -1) {
     return null
   }
   const turnItemId = items[start]?.itemId
-  // A host scopes its error row to the turn, or writes it on the thread after the turn's end;
-  // either way it sits between this turn and the next one.
+  // Explicit scope survives a later turn; only unscoped legacy rows need its timeline span.
   const next = items.findIndex(
     (item, index) =>
       index > start && isRootAgentJournalItem(item) && readAgentJournalTurn(item.body) !== null
   )
   // A typed failure row, or a provider's own error frame, which carries the agent's sentence only.
-  const row = items
-    .slice(start + 1, next === -1 ? undefined : next)
-    .findLast(
-      (item) =>
-        isRootAgentJournalItem(item) &&
-        item.body.kind === 'status' &&
-        (item.body.failure
-          ? item.body.failure.kind !== 'providerRetrying'
-          : item.body.tone === 'error') &&
-        (item.turnScope?.kind !== 'turn' || item.turnScope.turnItemId === turnItemId)
-    )
-  return row?.body.kind === 'status' && row.body.text
-    ? withDetail(row.body.text, readAgentSessionFailureFact(row.body.failure))
+  const row = items.findLast(
+    (item, index) =>
+      isRootAgentJournalItem(item) &&
+      item.body.kind === 'status' &&
+      (item.body.failure
+        ? item.body.failure.kind !== 'providerRetrying'
+        : item.body.tone === 'error') &&
+      (item.turnScope?.kind === 'turn'
+        ? item.turnScope.turnItemId === turnItemId
+        : index > start && (next === -1 || index < next))
+  )
+  const rejection = snapshot.submissions.findLast(
+    (entry) =>
+      entry.dispatchState === 'rejected' &&
+      entry.answeredInTurn?.turnItemId === turnItemId &&
+      entry.answeredInTurn.via === 'start' &&
+      entry.reason &&
+      !isSenderOwnRejection(withDetail(entry.reason, readAgentSessionFailureFact(entry.rejection)))
+  )
+  const related = rejection?.reason
+    ? withDetail(rejection.reason, readAgentSessionFailureFact(rejection.rejection))
     : null
+  const error =
+    row?.body.kind === 'status' && row.body.text
+      ? withDetail(row.body.text, readAgentSessionFailureFact(row.body.failure))
+      : related
+  return error && related && !error.detail && related.text !== error.text
+    ? { ...error, detail: related.detail ?? related.text }
+    : error
 }
 
 function withDetail(

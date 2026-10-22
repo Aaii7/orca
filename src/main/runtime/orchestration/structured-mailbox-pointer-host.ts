@@ -46,7 +46,7 @@ export function structuredSessionPointerCallerKey(sessionId: string): string {
 export async function readStructuredSessionGateFacts(
   sessionId: string
 ): Promise<StructuredSessionGateFacts | null> {
-  const snapshot = await readStructuredSessionJournal(sessionId)
+  const snapshot = await readSessionJournal(sessionId)
   if (!snapshot) {
     return null
   }
@@ -59,7 +59,7 @@ export async function readStructuredSessionGateFacts(
 async function readPointerSessionFacts(
   sessionId: string
 ): Promise<StructuredPointerSessionFacts | null> {
-  const snapshot = await readStructuredSessionJournal(sessionId)
+  const snapshot = await readSessionJournal(sessionId)
   if (!snapshot) {
     return null
   }
@@ -72,9 +72,7 @@ async function readPointerSessionFacts(
   }
 }
 
-export async function readStructuredSessionJournal(
-  sessionId: string
-): Promise<AgentJournalSnapshot | null> {
+async function readSessionJournal(sessionId: string): Promise<AgentJournalSnapshot | null> {
   const host = getStructuredAgentSessionHost()
   if (!host) {
     return null
