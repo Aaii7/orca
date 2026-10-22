@@ -4,10 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command'
 import { translate } from '@/i18n/i18n'
 import type { BrowserAddressBarSuggestion } from './browser-address-bar-suggestions'
-import {
-  BrowserHistoryRowRemoveButton,
-  isRemovableHistoryRow
-} from '../history/browser-history-row-removal'
+import BrowserHistoryRowRemoveButton from '../history/BrowserHistoryRowRemoveButton'
+import { isRemovableHistoryRow } from '../history/browser-history-row-removal'
 
 const NO_SELECTED_ROW = 'orca:no-selected-row'
 

@@ -27,11 +27,8 @@ import { startOfLocalDay } from '../../../../../shared/automation-cron-occurrenc
 import { formatKeybinding } from '../../../../../shared/keybindings/formatting'
 import type { RemovedBrowserHistory } from '@/store/slices/browser/browser-slice-contract'
 import type { BrowserAddressBarSuggestion } from '../assemble-chrome/browser-address-bar-suggestions'
-import {
-  BrowserHistoryRowRemoveButton,
-  isRemoveRowShortcut,
-  useRemoveHistoryRow
-} from './browser-history-row-removal'
+import BrowserHistoryRowRemoveButton from './BrowserHistoryRowRemoveButton'
+import { isRemoveRowShortcut, useRemoveHistoryRow } from './browser-history-row-removal'
 import {
   browserHistoryClearSince,
   browserHistoryRowKey,
