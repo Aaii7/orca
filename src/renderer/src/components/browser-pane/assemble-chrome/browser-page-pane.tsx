@@ -387,6 +387,8 @@ export function BrowserPagePane({
               isBlankTab={isBlankTab}
               containerRef={containerRef}
               markupPortalContainer={pageViewport?.content ?? null}
+              // Why: only a preset leaves room around the page box for the controls to sit outside it.
+              markupControlsContainer={browserTab.viewportPresetId ? pageViewportScroller : null}
               browserOverlayViewport={browserOverlayViewport}
               worktreeId={worktreeId}
               grab={grab}
