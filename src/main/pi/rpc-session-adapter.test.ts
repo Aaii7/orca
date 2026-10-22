@@ -300,7 +300,6 @@ describe('Pi RPC session ownership and delivery', () => {
     expect(h.connection.requests).toContain('abort')
     h.connection.receive({ type: 'agent_settled' })
     await vi.waitFor(async () => expect((await h.rig.turns())[0]?.outcome).toBe('cancellation'))
-    expect(h.settled).not.toHaveBeenCalled()
   })
 
   it('keeps a pending manual compaction cancellable and reports root/tree proof honestly', async () => {

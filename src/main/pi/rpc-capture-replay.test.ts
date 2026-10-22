@@ -109,6 +109,16 @@ async function replay(name: string) {
   return { rows, turns: await rig.turns(), accepted, failed, idle, settled }
 }
 
+function transcript(rows: Awaited<ReturnType<typeof replay>>['rows']): string {
+  return rows
+    .flatMap((row) =>
+      row.body.kind === 'message'
+        ? row.body.blocks.flatMap((block) => (block.type === 'text' ? [block.text] : []))
+        : []
+    )
+    .join('\n')
+}
+
 describe('scrubbed Pi 1.0.4 RPC captures', () => {
   it('records tool output, streamed text, and all three consumed inputs in one settled run', async () => {
     const result = await replay('steer-followup')
@@ -119,13 +129,8 @@ describe('scrubbed Pi 1.0.4 RPC captures', () => {
     expect(
       result.rows.some((row) => row.body.kind === 'tool-call' && row.body.state === 'completed')
     ).toBe(true)
-    const texts = result.rows.flatMap((row) =>
-      row.body.kind === 'message'
-        ? row.body.blocks.flatMap((block) => (block.type === 'text' ? [block.text] : []))
-        : []
-    )
-    expect(texts.join('\n')).toContain('STEER_CONSUMED')
-    expect(texts.join('\n')).toContain('FOLLOWUP_CONSUMED')
+    expect(transcript(result.rows)).toContain('STEER_CONSUMED')
+    expect(transcript(result.rows)).toContain('FOLLOWUP_CONSUMED')
   })
   it.each(['provider-fetch-error', 'provider-socket-error'])(
     'marks captured %s as failure with the provider diagnostic',
@@ -158,12 +163,7 @@ describe('scrubbed Pi 1.0.4 RPC captures', () => {
     expect(result.accepted.mock.calls.map(([id]) => id)).toEqual(['send-1'])
     expect(result.turns.map((turn) => turn.outcome)).toEqual(['success', 'success'])
     expect(result.idle).toHaveBeenCalledTimes(2)
-    const texts = result.rows.flatMap((row) =>
-      row.body.kind === 'message'
-        ? row.body.blocks.flatMap((block) => (block.type === 'text' ? [block.text] : []))
-        : []
-    )
-    expect(texts.join('\n')).toContain('WAKE_CONSUMED')
+    expect(transcript(result.rows)).toContain('WAKE_CONSUMED')
   })
   it('preserves empty answers and literal Unicode separators in captured dialogs', () => {
     const dialogs = capture('dialogs').flatMap(({ dir, frame }) =>
