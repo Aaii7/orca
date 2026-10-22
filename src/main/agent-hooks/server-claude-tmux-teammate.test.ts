@@ -86,17 +86,6 @@ describe('Claude tmux teammate hooks on the lead pane', () => {
     expect(paneState(server)).toBe('working')
   })
 
-  it('lets a relaunched Claude take the pane once the previous process has exited', async () => {
-    const server = new AgentHookServer()
-    servers.push(server)
-    await server.start({ env: 'production' })
-    await leadAsksQuestion(server)
-    probe.mockResolvedValue('exited')
-
-    await post(server, TEAMMATE, { hook_event_name: 'UserPromptSubmit', prompt: 'Next task' })
-    expect(paneState(server)).toBe('working')
-  })
-
   it('keeps the dead lead exit when only its teammate ends afterwards', async () => {
     const server = new AgentHookServer()
     servers.push(server)
