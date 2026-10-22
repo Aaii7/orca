@@ -10,7 +10,7 @@ const MAX_PROGRAM_STATUS_FACETS = 1024
 type StoredProgramStatus = {
   facet: ProgramStatusFacet
   /** From the ordered lifecycle reports; a facet holds only a chunk's last one. */
-  lifecycleState?: AgentStatusState
+  working?: boolean
   /** When the program last entered `working`: evidence of new work after a hook-settled turn. */
   workingSince?: number
 }
@@ -54,10 +54,10 @@ export class ProgramStatusFacetStore {
     if (stored === undefined) {
       return undefined
     }
-    if (state === 'working' && stored.lifecycleState !== 'working') {
+    if (state === 'working' && stored.working !== true) {
       stored.workingSince = at
     }
-    stored.lifecycleState = state
+    stored.working = state === 'working'
     return stored.workingSince
   }
 

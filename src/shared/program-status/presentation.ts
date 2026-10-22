@@ -2,7 +2,11 @@
 // adds what the row's producer cannot say. Shared by desktop, dashboard and mobile.
 import type { AgentStatusEntry } from '../agent-status-types'
 import type { ProgramStatusFacet } from './facet'
-import { programStatusStateCarriesProgress, type ProgramStatusKind } from './protocol'
+import {
+  isTurnScopedProgramStatusKind,
+  programStatusStateCarriesProgress,
+  type ProgramStatusKind
+} from './protocol'
 
 type ProgramStatusAttention = {
   /** What the program waits for; `undefined` when it did not say. */
@@ -50,11 +54,10 @@ export function resolveProgramStatusPresentation(
   if (bothLive && facet.message && !entry.toolName?.trim()) {
     presentation.message = facet.message
   }
-  // Why: approvals and answers belong to a running turn, so a finished one has none pending; sign-in outlives it.
-  const turnScopedBlock = facet.kind === 'permission' || facet.kind === 'question'
   if (
     facet.state === 'blocked' &&
-    (entry.state === 'working' || (entry.state === 'done' && !turnScopedBlock))
+    (entry.state === 'working' ||
+      (entry.state === 'done' && !isTurnScopedProgramStatusKind(facet.kind)))
   ) {
     presentation.attention = {
       ...(facet.kind ? { kind: facet.kind } : {}),
