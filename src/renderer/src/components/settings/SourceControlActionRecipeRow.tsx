@@ -29,8 +29,7 @@ import { translate } from '@/i18n/i18n'
 import { SourceControlActionModelPicker } from './SourceControlActionModelPicker'
 import {
   SourceControlActionExtraArgsField,
-  SourceControlActionOptionField,
-  SourceControlActionOptionsPlaceholder
+  SourceControlActionOptionField
 } from './SourceControlActionOptionField'
 import { useSourceControlActionAgent } from './use-source-control-action-agent'
 
@@ -100,6 +99,8 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
   onSave
 }: SourceControlActionRecipeRowProps<ActionId>): React.JSX.Element {
   const actual = useSourceControlActionAgent(selectedAgent, defaultTuiAgent)
+  const expectedAgent = resolveAgentArgsPlaceholderAgent(selectedAgent, defaultTuiAgent)
+  const pickerAgent = selectedAgent || actual.status === 'pending' ? expectedAgent : actual.agent
   const isLaunchAction = !AI_TEXT_ACTION_ID_SET.has(actionId)
   const templateDirty =
     hasUnsavedChanges ?? JSON.stringify(draftValue) !== JSON.stringify(baseValue)
@@ -176,12 +177,11 @@ export function SourceControlActionRecipeRow<ActionId extends AiActionId>({
       <div className="mt-3 grid items-start gap-3 sm:grid-cols-[220px_1fr]">
         {isLaunchAction ? (
           <div className="grid min-w-0 gap-2">
-            {actual.status === 'pending' ? (
-              <SourceControlActionOptionsPlaceholder />
-            ) : onLaunchPreferencesChange ? (
+            {onLaunchPreferencesChange ? (
               <SourceControlActionModelPicker
-                agent={actual.agent}
+                agent={pickerAgent}
                 value={launchPreferences}
+                disabled={actual.status === 'pending'}
                 onChange={(value) => onLaunchPreferencesChange(actionId, value)}
               />
             ) : null}
