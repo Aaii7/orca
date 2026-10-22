@@ -7,7 +7,6 @@ import { convertBrowserPageToWorkspaceDoc } from '@/lib/file-preview'
 import { openWorkspaceBrowserTab } from '@/lib/workspace-browser-tab-open'
 import { resolveBrowserSourceUnifiedTab } from '@/lib/browser-workspace-source-resolution'
 import { useBrowserPageChromeFocus } from '../assemble-chrome/use-browser-page-chrome-focus'
-import { toDisplayUrl } from '../describe-page/browser-page-url-display'
 import { useBrowserAddressBarEditSession } from '../assemble-chrome/use-browser-address-bar-edit-session'
 import { useElementGuestFocus } from '../assemble-chrome/browser-page-guest-focus'
 import { consumeBrowserPageDeferredNavigation } from '../navigate/browser-page-deferred-navigation'
@@ -386,7 +385,6 @@ export function RemoteBrowserPagePane({
       <RemoteBrowserPageToolbar
         runtimeEnvironmentId={runtimeEnvironmentId}
         addressBarValue={addressBarValue}
-        addressBarCommittedValue={toDisplayUrl(browserTab.url)}
         onAddressBarChange={setAddressBarValue}
         onSubmitAddressBar={submitAddressBar}
         onNavigateToUrl={navigateToUrl}

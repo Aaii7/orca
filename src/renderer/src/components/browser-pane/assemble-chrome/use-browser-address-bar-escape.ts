@@ -2,27 +2,7 @@ import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react'
 import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
 import { requestBrowserFocus } from '../host-guest/browser-focus'
 
-export type BrowserAddressBarEscapeStep = 'restore-typed' | 'close' | 'revert' | 'leave'
-
-/** Chromium's OmniboxEditModel::OnEscapeKeyPressed order: each press takes the first step that applies. */
-export function resolveBrowserAddressBarEscape({
-  previewing,
-  open,
-  inputInProgress
-}: {
-  previewing: boolean
-  open: boolean
-  inputInProgress: boolean
-}): BrowserAddressBarEscapeStep {
-  if (previewing) {
-    return 'restore-typed'
-  }
-  if (open) {
-    return 'close'
-  }
-  return inputInProgress ? 'revert' : 'leave'
-}
-
+/** Escape in the bar, in the order of Chromium's OmniboxEditModel::OnEscapeKeyPressed. */
 export function useBrowserAddressBarEscape({
   pageId,
   inputRef,
@@ -79,12 +59,11 @@ export function useBrowserAddressBarEscape({
       // Why both: the typed text tells a retyped page address from an untouched one, and the
       // comparison covers drafts handed over from a pane that remounted mid-edit.
       const inputInProgress = value === typedValueRef.current || value !== committedValue
-      const step = resolveBrowserAddressBarEscape({ previewing, open, inputInProgress })
-      if (step === 'restore-typed') {
+      if (previewing) {
         restoreTypedQuery()
-      } else if (step === 'close') {
+      } else if (open) {
         closeSuggestions()
-      } else if (step === 'revert') {
+      } else if (inputInProgress) {
         typedValueRef.current = null
         if (value === committedValue) {
           inputRef.current?.select()

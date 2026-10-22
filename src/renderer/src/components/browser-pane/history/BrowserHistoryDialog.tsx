@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useRef, useState } from 'react'
-import { FileText, Trash2, X } from 'lucide-react'
+import { FileText, Trash2 } from 'lucide-react'
 import { BrowserFavicon } from '@/components/browser-favicon'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,18 +17,21 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { FooterKey } from '@/components/worktree-jump-palette-primitives'
 import { getIntlLocale, translate } from '@/i18n/i18n'
+import { getShortcutPlatform } from '@/hooks/useShortcutLabel'
 import { useAppStore } from '@/store'
 import { requestBrowserFocus } from '../host-guest/browser-focus'
 import type { BrowserPageDocLocation } from '../../../../../shared/browser-workspace-types'
+import { startOfLocalDay } from '../../../../../shared/automation-cron-occurrence'
+import { formatKeybinding } from '../../../../../shared/keybindings/formatting'
 import type { RemovedBrowserHistory } from '@/store/slices/browser/browser-slice-contract'
 import type { BrowserAddressBarSuggestion } from '../assemble-chrome/browser-address-bar-suggestions'
 import {
+  BrowserHistoryRowRemoveButton,
   isRemoveRowShortcut,
   useRemoveHistoryRow
-} from '../assemble-chrome/use-browser-address-bar-row-removal'
+} from './browser-history-row-removal'
 import {
   browserHistoryClearSince,
   browserHistoryRowKey,
@@ -71,14 +74,11 @@ function getHistoryFormats(): NonNullable<typeof historyFormats> {
 }
 
 function formatDayHeading(startsAt: number, now: number, dateFormat: Intl.DateTimeFormat): string {
-  const today = new Date(now)
-  today.setHours(0, 0, 0, 0)
-  if (startsAt === today.getTime()) {
+  const today = startOfLocalDay(now)
+  if (startsAt === today) {
     return translate('browser.history.today', 'Today')
   }
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (startsAt === yesterday.getTime()) {
+  if (startsAt === startOfLocalDay(today - 1)) {
     return translate('browser.history.yesterday', 'Yesterday')
   }
   return dateFormat.format(startsAt)
@@ -109,7 +109,6 @@ function BrowserHistoryDialogContent({
   const [query, setQuery] = useState('')
   // Why in the footer and not a toast: the modal overlay covers the app's toaster.
   const [cleared, setCleared] = useState<RemovedBrowserHistory | null>(null)
-  const [selectedKey, setSelectedKey] = useState('')
   const deferredQuery = useDeferredValue(query)
   const [now] = useState(() => Date.now())
   const rows = useMemo(
@@ -120,7 +119,6 @@ function BrowserHistoryDialogContent({
   const { dateFormat, timeFormat } = getHistoryFormats()
   const openedRowRef = useRef(false)
   const close = (): void => setBrowserHistoryPageId(null)
-  const removeLabel = translate('browser.history.remove', 'Remove from history')
 
   const openRow = (row: BrowserAddressBarSuggestion): void => {
     openedRowRef.current = true
@@ -160,12 +158,17 @@ function BrowserHistoryDialogContent({
       contentClassName="top-[min(10%,4rem)] w-[720px] max-w-[96vw] overflow-hidden"
       commandProps={{
         loop: true,
-        value: selectedKey,
-        onValueChange: setSelectedKey,
         className: 'jump-palette-command bg-transparent',
-        onKeyDownCapture: (event: React.KeyboardEvent) => {
+        onKeyDownCapture: (event: React.KeyboardEvent<HTMLDivElement>) => {
+          if (!isRemoveRowShortcut(event)) {
+            return
+          }
+          // Why read from cmdk: tracking its selection in state would re-render every row per hover.
+          const selectedKey = event.currentTarget
+            .querySelector('[cmdk-item][data-selected="true"]')
+            ?.getAttribute('data-value')
           const selected = rows.find((row) => browserHistoryRowKey(row) === selectedKey)
-          if (selected && isRemoveRowShortcut(event)) {
+          if (selected) {
             event.preventDefault()
             event.stopPropagation()
             removeHistoryRow(selected)
@@ -190,58 +193,39 @@ function BrowserHistoryDialogContent({
             key={day.startsAt}
             heading={formatDayHeading(day.startsAt, now, dateFormat)}
           >
-            {day.rows.map((row) => (
-              <CommandItem
-                key={browserHistoryRowKey(row)}
-                value={browserHistoryRowKey(row)}
-                onSelect={() => openRow(row)}
-                className="cursor-pointer"
-              >
-                {row.docLocation ? (
-                  <FileText className="size-3.5 text-muted-foreground" />
-                ) : (
-                  <BrowserFavicon
-                    faviconUrl={row.faviconUrl}
-                    className="size-3.5"
-                    fallbackClassName="text-muted-foreground"
-                  />
-                )}
-                <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="truncate text-[13px] text-foreground">
-                    {row.title || row.url}
+            {day.rows.map((row) => {
+              const key = browserHistoryRowKey(row)
+              return (
+                <CommandItem
+                  key={key}
+                  value={key}
+                  onSelect={() => openRow(row)}
+                  className="cursor-pointer"
+                >
+                  {row.docLocation ? (
+                    <FileText className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <BrowserFavicon
+                      faviconUrl={row.faviconUrl}
+                      className="size-3.5"
+                      fallbackClassName="text-muted-foreground"
+                    />
+                  )}
+                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="truncate text-[13px] text-foreground">
+                      {row.title || row.url}
+                    </span>
+                    <span className="min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
+                      {row.subtitle}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {timeFormat.format(row.lastVisitedAt)}
                   </span>
-                  <span className="min-w-0 shrink-[2] truncate text-xs text-muted-foreground">
-                    {row.subtitle}
-                  </span>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {timeFormat.format(row.lastVisitedAt)}
-                </span>
-                <span className="shrink-0 text-muted-foreground opacity-0 [[data-selected=true]_&]:opacity-100">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        tabIndex={-1}
-                        aria-label={removeLabel}
-                        // Why: keep focus in the search field; the row and this button are about to unmount.
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          removeHistoryRow(row)
-                        }}
-                      >
-                        <X />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={4}>
-                      {removeLabel}
-                    </TooltipContent>
-                  </Tooltip>
-                </span>
-              </CommandItem>
-            ))}
+                  <BrowserHistoryRowRemoveButton onRemove={() => removeHistoryRow(row)} />
+                </CommandItem>
+              )
+            })}
           </CommandGroup>
         ))}
       </CommandList>
@@ -288,7 +272,7 @@ function BrowserHistoryDialogContent({
         <div className="flex items-center gap-2">
           <FooterKey>{translate('browser.history.enterKey', 'Enter')}</FooterKey>
           <span>{translate('browser.history.open', 'Open')}</span>
-          <FooterKey>{navigator.userAgent.includes('Mac') ? '⇧⌦' : 'Shift+Del'}</FooterKey>
+          <FooterKey>{formatKeybinding('Shift+Delete', getShortcutPlatform()).join(' ')}</FooterKey>
           <span>{translate('browser.history.removeShort', 'Remove')}</span>
           <FooterKey>{translate('browser.history.escKey', 'Esc')}</FooterKey>
           <span>{translate('browser.history.close', 'Close')}</span>

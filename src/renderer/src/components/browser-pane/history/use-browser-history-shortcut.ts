@@ -21,24 +21,19 @@ export function useBrowserHistoryShortcut({
   const setBrowserHistoryPageId = useAppStore((s) => s.setBrowserHistoryPageId)
   const keybindings = useAppStore((s) => s.keybindings)
 
-  // Why: a focused page swallows the chord in main, which forwards it here.
   useEffect(() => {
     if (!isActive) {
       return
     }
-    return window.api.ui.onShowBrowserHistory(({ browserPageId }) => {
+    // Why: a focused page swallows the chord in main, which forwards it here.
+    const unsubscribe = window.api.ui.onShowBrowserHistory(({ browserPageId }) => {
       if (browserPageId === browserTabId) {
         setBrowserHistoryPageId(browserTabId)
       }
     })
-  }, [browserTabId, isActive, setBrowserHistoryPageId])
-
-  // Why: a history view left over a page the user switched away from would open its pick there.
-  useEffect(() => {
-    if (!isActive) {
-      return
-    }
     return () => {
+      unsubscribe()
+      // Why: a history view left over a page the user switched away from would open its pick there.
       if (useAppStore.getState().browserHistoryPageId === browserTabId) {
         setBrowserHistoryPageId(null)
       }

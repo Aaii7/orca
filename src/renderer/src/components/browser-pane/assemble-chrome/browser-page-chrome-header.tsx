@@ -1,7 +1,6 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react'
 import type { BrowserPage as BrowserPageState } from '../../../../../shared/browser-workspace-types'
 import type { ShareableBrowserArtifactFile } from '../describe-page/browser-artifact-upload'
-import { toDisplayUrl } from '../describe-page/browser-page-url-display'
 import type { GrabModeHook } from '../annotate/useGrabMode'
 import { BrowserPageToolbar } from './browser-page-toolbar'
 import { BrowserPageDownloadList } from '../navigate/browser-page-download-list'
@@ -86,7 +85,6 @@ export function BrowserPageChromeHeader({
         hardReloadShortcut={reload.hardReloadShortcut}
         runReloadTrigger={reload.runReloadTrigger}
         addressBarValue={nav.addressBarValue}
-        addressBarCommittedValue={toDisplayUrl(browserTab.url)}
         setAddressBarValue={nav.setAddressBarValue}
         submitAddressBar={nav.submitAddressBar}
         navigateToUrl={nav.navigateToUrl}

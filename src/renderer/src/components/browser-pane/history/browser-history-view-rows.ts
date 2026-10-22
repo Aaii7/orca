@@ -1,7 +1,8 @@
 import type { BrowserHistoryEntry } from '../../../../../shared/browser-workspace-types'
 import type { WorkspaceDocHistoryEntry } from '../../../../../shared/workspace-doc-history'
+import { startOfLocalDay } from '../../../../../shared/automation-cron-occurrence'
 import {
-  toWorkspaceDocSuggestion,
+  listBrowserHistoryRecents,
   type BrowserAddressBarSuggestion
 } from '../assemble-chrome/browser-address-bar-suggestions'
 
@@ -30,22 +31,10 @@ export function listBrowserHistoryRows(
   query: string
 ): BrowserAddressBarSuggestion[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const rows: BrowserAddressBarSuggestion[] = [
-    ...browserUrlHistory.map((entry) => ({ ...entry, subtitle: entry.url, isSearch: false })),
-    ...workspaceDocHistory.map(toWorkspaceDocSuggestion)
-  ]
-  return rows
-    .filter((row) => {
-      const text = `${row.title}\n${row.subtitle}`.toLowerCase()
-      return words.every((word) => text.includes(word))
-    })
-    .sort((a, b) => b.lastVisitedAt - a.lastVisitedAt)
-}
-
-function startOfLocalDay(time: number): number {
-  const date = new Date(time)
-  date.setHours(0, 0, 0, 0)
-  return date.getTime()
+  return listBrowserHistoryRecents(browserUrlHistory, workspaceDocHistory).filter((row) => {
+    const text = `${row.title}\n${row.subtitle}`.toLowerCase()
+    return words.every((word) => text.includes(word))
+  })
 }
 
 /** Groups rows already sorted newest first by the local day of their last visit. */

@@ -1,11 +1,13 @@
-import { FileText, Search, X } from 'lucide-react'
+import { FileText, Search } from 'lucide-react'
 import { BrowserFavicon } from '@/components/browser-favicon'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command'
 import { translate } from '@/i18n/i18n'
 import type { BrowserAddressBarSuggestion } from './browser-address-bar-suggestions'
-import { isRemovableHistoryRow } from './use-browser-address-bar-row-removal'
+import {
+  BrowserHistoryRowRemoveButton,
+  isRemovableHistoryRow
+} from '../history/browser-history-row-removal'
 
 const NO_SELECTED_ROW = 'orca:no-selected-row'
 
@@ -31,7 +33,6 @@ export default function BrowserAddressBarSuggestionList({
   onSwitchToTab,
   onRemove
 }: BrowserAddressBarSuggestionListProps): React.ReactElement {
-  const removeLabel = translate('browser.history.remove', 'Remove from history')
   return (
     // Why the sentinel: cmdk selects its first row whenever the value is empty, and an empty bar
     // has no row Enter would pick.
@@ -88,31 +89,7 @@ export default function BrowserAddressBarSuggestionList({
                 </Button>
               ) : null}
               {isRemovableHistoryRow(entry) ? (
-                // Why: hidden until the row is hovered or arrowed to, like Chrome's row X; cmdk
-                // marks both as selected.
-                <span className="shrink-0 text-muted-foreground opacity-0 [[data-selected=true]_&]:opacity-100">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        tabIndex={-1}
-                        aria-label={removeLabel}
-                        // Why: keep focus in the address bar so the list stays open through the click.
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onRemove(entry)
-                        }}
-                      >
-                        <X />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={4}>
-                      {removeLabel}
-                    </TooltipContent>
-                  </Tooltip>
-                </span>
+                <BrowserHistoryRowRemoveButton onRemove={() => onRemove(entry)} />
               ) : null}
             </CommandItem>
           ))}

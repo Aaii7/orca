@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
+import { findPage } from '@/store/slices/browser-page-records'
 import { DEFAULT_SEARCH_ENGINE, type SearchEngine } from '../../../../../shared/browser-url'
 import type { BrowserPageDocLocation } from '../../../../../shared/browser-workspace-types'
 import { buildBrowserAddressBarSuggestions } from './browser-address-bar-suggestions'
@@ -16,14 +17,12 @@ import { useBrowserAddressBarClickSelect } from './use-browser-address-bar-click
 import { useBrowserAddressBarDismissal } from './use-browser-address-bar-dismissal'
 import { useBrowserAddressBarEscape } from './use-browser-address-bar-escape'
 import { useBrowserAddressBarSuggestionPreview } from './use-browser-address-bar-suggestion-preview'
-import {
-  isRemovableHistoryRow,
-  isRemoveRowShortcut,
-  useRemoveSuggestionRow
-} from './use-browser-address-bar-row-removal'
+import { useRemoveSuggestionRow } from './use-browser-address-bar-row-removal'
+import { isRemovableHistoryRow, isRemoveRowShortcut } from '../history/browser-history-row-removal'
 import type { BrowserAddressBarEditSessionBinding } from './use-browser-address-bar-edit-session'
 import BrowserAddressBarSuggestionList from './BrowserAddressBarSuggestionList'
 import { BrowserLoadProgress } from './browser-load-progress'
+import { toDisplayUrl } from '../describe-page/browser-page-url-display'
 import BrowserHistoryDialog from '../history/BrowserHistoryDialog'
 
 function clearTimerRef(timerRef: { current: number | null }): void {
@@ -37,8 +36,8 @@ type BrowserAddressBarProps = {
   /** The page this bar edits; its worktree's other open pages are offered as "Switch to tab". */
   pageId: string
   value: string
-  /** The page's address as the bar shows it unedited; Escape reverts an edit to it. */
-  committedValue: string
+  /** What Escape reverts an edit to; the page's own address when omitted. */
+  committedValue?: string
   /** Where the last Escape goes once nothing is left to undo; the page itself by default. */
   onLeave?: () => void
   onChange: (value: string) => void
@@ -85,6 +84,9 @@ export default function BrowserAddressBar({
   const workspaceDocHistory = useAppStore((s) => s.workspaceDocHistory)
   const browserDefaultSearchEngine = useAppStore((s) => s.browserDefaultSearchEngine)
   const browserKagiSessionLink = useAppStore((s) => s.browserKagiSessionLink)
+  const pageAddress = useAppStore((s) =>
+    toDisplayUrl(findPage(s.browserPagesByWorkspace, pageId)?.url ?? '')
+  )
   const closingRef = useRef(false)
   const addressBarClickSelect = useBrowserAddressBarClickSelect()
   const openedAtRef = useRef(0)
@@ -169,7 +171,7 @@ export default function BrowserAddressBar({
     pageId,
     inputRef,
     value,
-    committedValue,
+    committedValue: committedValue ?? pageAddress,
     open,
     previewing:
       prePreviewValueRef.current !== null && !(inlineText !== null && value === inlineText),
