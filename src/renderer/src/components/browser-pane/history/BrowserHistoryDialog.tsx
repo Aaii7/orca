@@ -130,9 +130,6 @@ function BrowserHistoryDialogContent({
     } else {
       onNavigate(row.url)
     }
-    // Why: like picking a row in the address bar, the page gets the keyboard; every pane kind
-    // (local, client-hosted, streamed) answers this request.
-    requestBrowserFocus({ pageId, target: 'webview' })
   }
 
   const clear = (range: BrowserHistoryClearRange): void => {
@@ -149,8 +146,15 @@ function BrowserHistoryDialogContent({
       open
       onOpenChange={(next) => !next && close()}
       shouldFilter={false}
-      // Why: an opened row hands focus to its page; restoring the opener's focus would take it back.
-      onCloseAutoFocus={(event) => openedRowRef.current && event.preventDefault()}
+      onCloseAutoFocus={(event) => {
+        if (!openedRowRef.current) {
+          return
+        }
+        // Why after teardown: like picking a row in the address bar, the opened page gets the
+        // keyboard, and the dialog's focus trap would pull a request made any earlier back in.
+        event.preventDefault()
+        requestBrowserFocus({ pageId, target: 'webview' })
+      }}
       title={translate('browser.history.title', 'History')}
       description={translate('browser.history.description', 'Search and manage browsing history')}
       contentClassName="top-[min(10%,4rem)] w-[720px] max-w-[96vw] overflow-hidden"
@@ -221,6 +225,8 @@ function BrowserHistoryDialogContent({
                         size="icon-xs"
                         tabIndex={-1}
                         aria-label={removeLabel}
+                        // Why: keep focus in the search field; the row and this button are about to unmount.
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={(event) => {
                           event.stopPropagation()
                           removeHistoryRow(row)
