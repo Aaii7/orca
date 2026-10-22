@@ -60,12 +60,14 @@ const TABS: MobileSessionTab[] = [
 ]
 
 const switched: MobileSessionTab[] = []
+const toasts: string[] = []
 
 function Probe({ terminalsLoaded }: { terminalsLoaded: boolean }): null {
   useNotificationPaneNavigation({
     sessionTabs: TABS,
     terminalsLoaded,
-    switchSessionTab: (tab) => switched.push(tab)
+    switchSessionTab: (tab) => switched.push(tab),
+    showToast: (message) => toasts.push(message)
   })
   return null
 }
@@ -95,6 +97,7 @@ beforeEach(() => {
   bridge.listeners = []
   bridge.cleared.length = 0
   switched.length = 0
+  toasts.length = 0
 })
 
 /**
@@ -188,9 +191,11 @@ describe('the page pane hook', () => {
     render(true)
     deliver(`gone:${LEAF}`)
     expect(switched).toEqual([])
+    expect(toasts).toEqual(['Agent no longer available'])
     // A re-render with nothing new delivered must not go looking for it again.
     deliver('')
     expect(switched).toEqual([])
+    expect(toasts).toHaveLength(1)
   })
 
   it('does nothing at all when the page was opened on no pane', () => {

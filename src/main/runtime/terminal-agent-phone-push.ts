@@ -201,6 +201,7 @@ export class TerminalAgentPhonePush {
       title,
       body,
       worktreeId,
+      paneKey,
       ...(notificationId ? { notificationId } : {}),
       agentState: row.state
     }

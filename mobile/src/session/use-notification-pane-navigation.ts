@@ -25,11 +25,13 @@ import { notificationPaneTab } from './notification-pane-tab'
 export function useNotificationPaneNavigation({
   sessionTabs,
   terminalsLoaded,
-  switchSessionTab
+  switchSessionTab,
+  showToast
 }: {
   sessionTabs: MobileSessionTab[]
   terminalsLoaded: boolean
   switchSessionTab: (tab: MobileSessionTab) => void
+  showToast: (message: string, durationMs?: number) => void
 }) {
   const client = usePageBridgeClient()
   // Seeded from the route this page was opened on: a tap that opened the session arrives in the
@@ -79,6 +81,8 @@ export function useNotificationPaneNavigation({
     const tab = notificationPaneTab(sessionTabs, paneKey)
     if (tab) {
       switchSessionTab(tab)
+    } else {
+      showToast('Agent no longer available', 1800)
     }
-  }, [asked, sessionTabs, switchSessionTab, terminalsLoaded])
+  }, [asked, sessionTabs, switchSessionTab, showToast, terminalsLoaded])
 }

@@ -277,7 +277,7 @@ it('reports a muted host before a disabled source', () => {
   ).toEqual({ delivered: false, reason: 'host-muted' })
 })
 
-it("tells the phone which server runs the workspace, through the gateway's push", async () => {
+it("tells the phone which server and pane raised it, through the gateway's push", async () => {
   for (const executionHost of [undefined, 'runtime:qa'] as const) {
     const push = createPushHarness({
       devices: [{ deviceId: 'phone', pushRegistration: registration() }]
@@ -286,10 +286,15 @@ it("tells the phone which server runs the workspace, through the gateway's push"
     harness.deps.dispatchMobileNotification = (event) =>
       push.dispatcher.enqueue({ ...event, notificationSeq: 1, notificationEpoch: 'epoch' })
     createNotificationDeliveryService(harness.deps).dispatch(
-      makeRequest({ agentState: 'done', ...(executionHost ? { executionHost } : {}) })
+      makeRequest({
+        agentState: 'done',
+        paneKey: 'tab-1:leaf-1',
+        ...(executionHost ? { executionHost } : {})
+      })
     )
     await flush()
     expect(push.sends[0]?.notification.worktreeId).toBe('wt-1')
+    expect(push.sends[0]?.notification.paneKey).toBe('tab-1:leaf-1')
     expect(push.sends[0]?.notification.executionHost).toBe(executionHost)
   }
 })
