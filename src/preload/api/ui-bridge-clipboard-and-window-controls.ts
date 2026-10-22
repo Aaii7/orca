@@ -3,6 +3,7 @@ import { ipcRenderer, webFrame } from 'electron'
 import {
   richMarkdownContextMenuCommandChannel,
   richMarkdownContextMenuTargetChannel,
+  plainTextContextMenuTargetChannel,
   type RichMarkdownContextMenuCommandPayload,
   type RichMarkdownContextMenuTableTarget
 } from '../../shared/rich-markdown-context-menu'
@@ -139,6 +140,9 @@ export const uiClipboardAndWindowControlsApi = {
   },
   setRichMarkdownContextMenuTarget: (target: RichMarkdownContextMenuTableTarget | null): void => {
     ipcRenderer.send(richMarkdownContextMenuTargetChannel, target)
+  },
+  markPlainTextContextMenuTarget: (): void => {
+    ipcRenderer.send(plainTextContextMenuTargetChannel)
   },
   setTerminalInputFocused: (focused: boolean): void => {
     ipcRenderer.send('ui:setTerminalInputFocused', focused)
