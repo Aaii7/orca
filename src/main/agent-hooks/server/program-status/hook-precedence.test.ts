@@ -69,16 +69,13 @@ describe('programStatusYieldsToHookRow', () => {
     expect(programStatusYieldsToHookRow(hook, disagree, NOW + SILENCE)).toBe(false)
   })
 
-  it('lets only new work take a turn the hooks settled, however long they stay silent', () => {
+  it('keeps a turn the hooks settled from a later block unless the program worked since', () => {
     const hook = row({ state: 'done', agentType: 'antigravity' })
+    const block = report({ state: 'waiting', agentType: 'antigravity' })
     const later = NOW + 10 * SILENCE
-    expect(
-      programStatusYieldsToHookRow(
-        hook,
-        report({ state: 'waiting', agentType: 'antigravity' }),
-        later
-      )
-    ).toBe(true)
+    expect(programStatusYieldsToHookRow(hook, block, later)).toBe(true)
+    expect(programStatusYieldsToHookRow(hook, block, later, NOW - 1)).toBe(true)
+    expect(programStatusYieldsToHookRow(hook, block, later, NOW + 1)).toBe(false)
     expect(
       programStatusYieldsToHookRow(
         hook,

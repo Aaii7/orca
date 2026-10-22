@@ -219,6 +219,20 @@ describe('OSC 7501 status beside hooks', () => {
       expect(resolveProgramStatusPresentation(paneRow()).attention).toBeUndefined()
     })
 
+    it("takes a settled turn's row for an approval in the program's next turn once hooks fall silent", async () => {
+      await openCodeHook('SessionIdle')
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      vi.advanceTimersByTime(1_000)
+      server.ingestProgramStatusFacet({
+        paneKey: PANE,
+        facet: { state: 'working', observedAt: Date.now() }
+      })
+      programStatus({ state: 'working', agentType: 'opencode' })
+      approvePlan()
+      vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
+      expect(paneRow()).toMatchObject({ state: 'waiting', toolInput: 'Approve plan' })
+    })
+
     it('surfaces an approval the program waits on mid-turn, and takes the row once hooks fall silent', async () => {
       await openCodeHook('SessionBusy')
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })

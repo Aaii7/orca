@@ -213,9 +213,10 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
       }
       return
     }
+    const programWorkingSince = this.programStatusFacets.workingSince(paneKey)
     const hookOwnsAgent =
       event.fromProgramStatus === true &&
-      programStatusYieldsToHookRow(previous, event.payload, Date.now())
+      programStatusYieldsToHookRow(previous, event.payload, Date.now(), programWorkingSince)
     if (event.fromProgramStatus === true) {
       const hookSilenceEndsYield =
         hookOwnsAgent &&
@@ -223,7 +224,8 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
         !programStatusYieldsToHookRow(
           previous,
           event.payload,
-          previous.receivedAt + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS
+          previous.receivedAt + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS,
+          programWorkingSince
         )
       if (hookSilenceEndsYield) {
         const yieldedTo = previous.receivedAt

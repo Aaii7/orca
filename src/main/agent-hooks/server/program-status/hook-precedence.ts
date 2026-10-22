@@ -6,11 +6,13 @@ import type { EnrichedAgentHookEventPayload } from '../server-types'
 export const HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS = 2 * 60 * 1000
 
 /** Whether an OSC 7501 projection must leave the pane's hook row alone: hooks carry richer identity,
- *  so they win until silent on a state they no longer describe. A later hook event hands it back. */
+ *  so they win until silent on a state they no longer describe. A later hook event hands it back.
+ *  `programWorkingSince`: when the program last entered `working` (ProgramStatusFacetStore). */
 export function programStatusYieldsToHookRow(
   previous: EnrichedAgentHookEventPayload | undefined,
   payload: ParsedAgentStatusPayload,
-  now: number
+  now: number,
+  programWorkingSince?: number
 ): boolean {
   if (previous?.observation?.origin !== 'hook' || previous.providerSessionOnly === true) {
     return false
@@ -22,9 +24,13 @@ export function programStatusYieldsToHookRow(
   if (!sameAgent && previous.payload.state === 'done') {
     return false
   }
-  // Hooks fall silent after a settled turn by design, so only new work outranks them; a block the
-  // program reports then rides its facet (resolveProgramStatusPresentation).
-  if (previous.payload.state === 'done' && payload.state !== 'working') {
+  // Hooks fall silent after a settled turn by design, so only the program's new work since outranks
+  // them; a block it reports without any rides its facet (resolveProgramStatusPresentation).
+  if (
+    previous.payload.state === 'done' &&
+    payload.state !== 'working' &&
+    !(programWorkingSince !== undefined && programWorkingSince > previous.receivedAt)
+  ) {
     return true
   }
   const hookSilentForMs = now - previous.receivedAt
