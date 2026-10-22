@@ -81,7 +81,7 @@ it('Split from the header keeps the source and opens a fresh chat on the same ho
   const source = renderHeader()
   mocks.launch.mockImplementation((args: { worktreeId: string; groupId: string }) => {
     useAppStore.getState().createUnifiedTab(args.worktreeId, 'agent-session', {
-      groupId: args.groupId,
+      targetGroupId: args.groupId,
       agentSessionAgent: 'codex',
       executionHostId: 'runtime:remote-host'
     })
