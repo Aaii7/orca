@@ -3,13 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
-import { useShortcutKeyDetails } from '@/hooks/useShortcutLabel'
-import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import { agentForksConversations } from '../../../../shared/agent-resume-argv'
 import type { NativeChatTabSession } from '../tab-bar/tab-session-history-switch'
 import { useSystemPrefersDark } from '../terminal-pane/use-system-prefers-dark'
 import { useStructuredChatPaneActions } from './use-structured-chat-pane-actions'
 import { NativeChatResumeInCliButton } from './NativeChatResumeInCliButton'
+import type { NativeChatStructuredViewProps } from './native-chat-view-types'
 
 const HEADER_STYLE: React.CSSProperties & Record<'--orca-pane-title-bg', string> = {
   '--orca-pane-title-bg': 'var(--chat-canvas)'
@@ -36,8 +35,7 @@ export function NativeChatPaneHeader({
   const light = colorScheme
     ? colorScheme === 'light'
     : theme === 'light' || (theme === 'system' && !systemDark)
-  const split = translate('components.native-chat.splitRight', 'Split Chat Right')
-  const splitShortcut = useShortcutKeyDetails('terminal.splitRight')
+  const split = translate('auto.components.cmd.j.quick.actions.splitChatRight', 'Split Chat Right')
   return (
     <div
       className="pane-title-bar z-20"
@@ -71,7 +69,6 @@ export function NativeChatPaneHeader({
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={4}>
             {split}
-            <ShortcutKeyCombo keys={splitShortcut.keys} doubleTap={splitShortcut.doubleTap} />
           </TooltipContent>
         </Tooltip>
         {actions.canClosePane ? (
@@ -98,4 +95,24 @@ export function NativeChatPaneHeader({
       </div>
     </div>
   )
+}
+
+export function nativeChatPaneHeader(
+  view: Pick<
+    NativeChatStructuredViewProps,
+    'tabId' | 'groupId' | 'sessionId' | 'agent' | 'isFocusedGroup' | 'contextMenuActions'
+  >,
+  worktreeId: string | null,
+  colorScheme: React.CSSProperties['colorScheme']
+): React.JSX.Element | null {
+  return worktreeId && view.groupId && !view.contextMenuActions ? (
+    <NativeChatPaneHeader
+      tabId={view.tabId}
+      worktreeId={worktreeId}
+      groupId={view.groupId}
+      nativeChat={{ sessionId: view.sessionId, agent: view.agent }}
+      focused={view.isFocusedGroup}
+      colorScheme={colorScheme}
+    />
+  ) : null
 }

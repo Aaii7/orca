@@ -2,17 +2,19 @@ import { connect, type Server, type Socket } from 'node:net'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { encodePairingOffer, parsePairingCode, PAIRING_OFFER_VERSION } from '../../shared/pairing'
 import type { ServeReadiness } from '../server/serve-readiness'
-import { OrcadManagedIdentityError } from '../ssh/orcad-managed-tunnel-identity'
+import { OrcadManagedIdentityError } from '../managed-server/lifecycle/orcad-managed-tunnel-identity'
 import { checkOrcadStdioBridge, openOrcadStdioBridgeChannel } from '../ssh/orcad-stdio-bridge'
-import { startEchoServer } from '../ssh/orcad-stdio-bridge-test-channel'
+import { startEchoServer } from '../managed-server/lifecycle/orcad-stdio-bridge-test-channel'
 import { fakeWslBridgeChildren, posixOrcadStdioBridge } from './wsl-orcad-bridge-test-child'
 import {
   WslOrcadConnectionManager,
-  WslOrcadConnectionSupersededError,
-  WslOrcadLaunchDeferredError,
   type WslOrcadConnection,
   type WslOrcadConnectionDependencies
 } from './wsl-orcad-connection'
+import {
+  WslOrcadConnectionSupersededError,
+  WslOrcadLaunchDeferredError
+} from './wsl-orcad-connection-errors'
 import type { WslOrcadLaunch } from './wsl-orcad-deploy'
 import { createWslOrcadHostTransport } from './wsl-orcad-host-transport'
 import { listenWslOrcadStdioBridge } from './wsl-orcad-stdio-bridge'
@@ -180,14 +182,14 @@ describe('WslOrcadConnectionManager', () => {
     expect(onChange).toHaveBeenCalledTimes(2)
   })
 
-  it('reports a changed pairing offer without rebuilding the bridge', async () => {
+  it('keeps its client grant when a relaunch advertises a new pairing offer', async () => {
     const { manager, launches, onChange } = setup()
     const connection = await manager.ensure('Ubuntu')
     launches.push(ready(first.port, 'rotated-token'))
     const refreshed = await manager.ensure('Ubuntu')
     expect(refreshed.localPort).toBe(connection.localPort)
-    expect(parsePairingCode(refreshed.pairingOffer)?.deviceToken).toBe('rotated-token')
-    expect(onChange).toHaveBeenLastCalledWith('Ubuntu', refreshed, { state: 'ready', census: null })
+    expect(refreshed.pairingOffer).toBe(connection.pairingOffer)
+    expect(onChange).toHaveBeenCalledTimes(2)
   })
 
   it('moves the bridge to the new port after a relaunch, on the same local port', async () => {
@@ -220,10 +222,10 @@ describe('WslOrcadConnectionManager', () => {
     const incumbent = await manager.ensure('Ubuntu')
     expect(incumbent.deferredUpdate).toEqual(deferredUpdate)
     launches.push({ ...ready(first.port), fullVersion: '2.0.0' })
-    const updated = await manager.ensure('Ubuntu', { force: true })
+    const updated = await manager.ensure('Ubuntu', { intent: 'force' })
     expect(deployAndLaunch).toHaveBeenLastCalledWith(
       'Ubuntu',
-      expect.objectContaining({ force: true })
+      expect.objectContaining({ intent: 'force' })
     )
     expect(updated).toMatchObject({
       fullVersion: '2.0.0',
@@ -238,27 +240,44 @@ describe('WslOrcadConnectionManager', () => {
   it('runs a forced connect after a plain one in flight instead of joining it', async () => {
     const { manager, deployAndLaunch } = setup()
     const plain = manager.ensure('Ubuntu')
-    const forced = manager.ensure('Ubuntu', { force: true })
+    const forced = manager.ensure('Ubuntu', { intent: 'force' })
     await Promise.all([plain, forced])
     expect(deployAndLaunch).toHaveBeenCalledTimes(2)
     expect(deployAndLaunch).toHaveBeenLastCalledWith(
       'Ubuntu',
-      expect.objectContaining({ force: true })
+      expect.objectContaining({ intent: 'force' })
     )
   })
 
   it('drops a queued forced connect that a close overtook', async () => {
     const { manager, deployAndLaunch } = setup()
     const plain = manager.ensure('Ubuntu')
-    const forced = manager.ensure('Ubuntu', { force: true })
+    const forced = manager.ensure('Ubuntu', { intent: 'force' })
     await manager.close('Ubuntu')
     await plain.catch(() => {})
     await expect(forced).rejects.toBeInstanceOf(WslOrcadConnectionSupersededError)
     expect(deployAndLaunch).toHaveBeenCalledTimes(1)
   })
 
+  it("hands the deploy this desktop's enrolled pairing for the incumbent's terminal count", async () => {
+    const enrolled = parsePairingCode(
+      encodePairingOffer({
+        v: PAIRING_OFFER_VERSION,
+        endpoint: 'ws://127.0.0.1:41000',
+        deviceToken: 'enrolled-token',
+        publicKeyB64: Buffer.alloc(32, 7).toString('base64')
+      })
+    )
+    const { manager, deployAndLaunch } = setup({ getPairingOffer: () => enrolled })
+    await manager.ensure('Ubuntu')
+    expect(deployAndLaunch).toHaveBeenCalledWith(
+      'Ubuntu',
+      expect.objectContaining({ pairedOffer: enrolled })
+    )
+  })
+
   it('throws the deferral and starts no bridge', async () => {
-    const { manager, launches, children } = setup()
+    const { manager, launches, children, onChange } = setup()
     launches.push({
       outcome: 'deferred',
       distro: 'Ubuntu',
@@ -270,6 +289,20 @@ describe('WslOrcadConnectionManager', () => {
     await expect(manager.ensure('Ubuntu')).rejects.toBeInstanceOf(WslOrcadLaunchDeferredError)
     expect(children.commands).toHaveLength(0)
     expect(manager.get('Ubuntu')).toBeNull()
+    // Nothing serves, so the deferral is what offers Update or Force.
+    expect(onChange).toHaveBeenLastCalledWith(
+      'Ubuntu',
+      null,
+      expect.objectContaining({
+        state: 'failed',
+        deferredUpdate: {
+          candidateVersion: '2.0.0',
+          code: 'live_terminals',
+          reason: 'Terminals are running.',
+          forceable: true
+        }
+      })
+    )
   })
 
   it('refuses a foreign server behind the port and closes its bridge', async () => {

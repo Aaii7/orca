@@ -1,10 +1,11 @@
+import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
+import { getAgentLabel } from '@/lib/agent-catalog'
 import type { AppState } from '@/store/types'
 import { useAppStore } from '@/store'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
-import { structuredAgentSessionTargetForHost } from '@/runtime/structured-agent-session-owner'
-import { adoptAgentSessionLaunchVerdict } from '@/lib/agent-session-launch-plan'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
-import { beginStructuredAgentSessionProvisionalLaunch } from '@/lib/structured-agent-session-provisional-tab'
+import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { captureNativeChatComposerFocusIntent } from '@/components/native-chat/use-native-chat-composer-reveal-focus'
 import { requestActiveTerminalPaneSplit } from '@/components/tab-bar/request-active-terminal-pane-split'
 import type { NativeChatSplitDirection } from './native-chat-split-shortcut'
@@ -74,46 +75,44 @@ export function runNativeChatSplitTarget(
     })
     return true
   }
+  // Captured first so focus follows this action into the new chat's composer.
+  const focusIntent = captureNativeChatComposerFocusIntent()
   const state = useAppStore.getState()
   const source = findSplitSource(state, target)
-  if (!source) {
-    return false
-  }
-  const executionHostId = source.tab.executionHostId
-  if (!executionHostId || !structuredAgentSessionTargetForHost(executionHostId)) {
-    return false
-  }
-  const focusIntent = captureNativeChatComposerFocusIntent()
-  const groupId = state.createEmptySplitGroup(source.worktreeId, target.groupId, direction)
-  if (!groupId) {
+  const groupId = source
+    ? state.createEmptySplitGroup(source.worktreeId, target.groupId, direction)
+    : null
+  if (!source || !groupId) {
     focusIntent.cancel()
     return false
   }
-  try {
-    const launch = beginStructuredAgentSessionProvisionalLaunch({
-      plan: adoptAgentSessionLaunchVerdict({
-        route: 'structured-native-chat',
-        requestId: newAgentLaunchRequestId(),
-        agent: source.agent,
-        worktreeId: source.worktreeId,
-        executionHostId
-      }),
-      hooks: {},
-      focusIntent,
-      onHostDeclined: null,
-      targetGroupId: groupId
-    })
-    if (!launch) {
-      state.closeEmptyGroup(source.worktreeId, groupId)
-      return false
-    }
-    // The normal new-chat launch founds an idle conversation; sending starts the agent.
-    void launch.settlement.finally(() => state.closeEmptyGroup(source.worktreeId, groupId))
-    return true
-  } catch (error) {
-    state.closeEmptyGroup(source.worktreeId, groupId)
-    throw error
+  const closePane = (): void => {
+    useAppStore.getState().closeEmptyGroup(source.worktreeId, groupId)
   }
+  // Same launch as New Chat, so the fresh chat opens at once in the new pane.
+  const result = launchAgentInNewTab({
+    requestId: newAgentLaunchRequestId(),
+    focusIntent,
+    requestedSurface: 'chat',
+    selectedExecutionHostId: source.tab.executionHostId,
+    agent: source.agent,
+    worktreeId: source.worktreeId,
+    groupId
+  })
+  if (!result) {
+    closePane()
+    toast.error(
+      translate(
+        'auto.components.tab.bar.QuickLaunchButton.465e432ef1',
+        'Could not build launch command for {{value0}}.',
+        { value0: getAgentLabel(source.agent) }
+      )
+    )
+    return true
+  }
+  // Settlement cleanup preserves any pane that currently contains a tab.
+  void result.structuredSettlement?.then(closePane, closePane)
+  return true
 }
 
 export function runActiveNativeChatSplit(

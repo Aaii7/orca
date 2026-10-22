@@ -14,7 +14,7 @@ export function useStructuredChatPaneActions(tabId: string, worktreeId: string, 
   const groupTabs = useMemo(() => tabs.filter((tab) => tab.groupId === groupId), [tabs, groupId])
   const { closeItem } = useTabGroupTabCloseCommands({ worktreeId })
   const closeLabel =
-    groupTabs.length > 1
+    groups.length < 2 || groupTabs.length > 1
       ? translate('auto.components.tab.bar.SortableTab.95db5f2f7d', 'Close tab')
       : translate('auto.components.terminal.pane.TerminalContextMenu.8c17d6786d', 'Close Pane')
   return {
@@ -22,7 +22,7 @@ export function useStructuredChatPaneActions(tabId: string, worktreeId: string, 
       runNativeChatSplitTarget({ kind: 'workspace-tab', unifiedTabId: tabId, groupId }, 'right'),
     onSplitDown: () =>
       runNativeChatSplitTarget({ kind: 'workspace-tab', unifiedTabId: tabId, groupId }, 'down'),
-    canClosePane: groups.length > 1,
+    canClosePane: groups.length > 1 || !groupTabs.find((tab) => tab.id === tabId)?.isPinned,
     closeLabel,
     onClosePane: () => closeItem(tabId)
   }

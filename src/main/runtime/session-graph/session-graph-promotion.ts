@@ -2,22 +2,50 @@ import type { OrcaRuntimeWithHasTerminalsForWorktree as HasTerminalsForWorktreeM
 import type { OrcaRuntimeWithBindPtyIncarnationHandle as BindPtyIncarnationHandleMethods } from '../terminal/identity/terminal-handle-bindings'
 import type { OrcaRuntimeWithResolveExitWaiters as ResolveExitWaitersMethods } from '../terminal/wait/terminal-wait-settlements'
 import type { OrcaRuntimeWithCollectMobileVisibleGraphChangedWorktrees as CollectMobileVisibleGraphChangedWorktreesMethods } from '../session-tabs/session-tabs-inventory'
-import type { OrcaRuntimeWithGetPtyRecordForPaneKey as GetPtyRecordForPaneKeyMethods } from '../orca-runtime-get-pty-record-for-pane-key'
+import type { OrcaRuntimeWithGetPtyRecordForPaneKey as GetPtyRecordForPaneKeyMethods } from '../orchestration/terminal-pane-mail-routing'
 import type { OrcaRuntimeWithResolveWaiter as ResolveWaiterMethods } from '../orca-runtime-resolve-waiter'
 import type { OrcaRuntimeWithMarkPtyLivenessUnverifiable as MarkPtyLivenessUnverifiableMethods } from '../terminal/layout/terminal-input-floor'
 import type { OrcaRuntimeWithRecordPtyWorktree as RecordPtyWorktreeMethods } from '../terminal/identity/pty-worktree-record'
 import type { RuntimeSessionTabsInventoryPublication as SessionTabsInventoryPublicationMethods } from '../session-tabs/session-tabs-inventory-publication'
 import type { OrcaRuntimeWithRefreshFloatingWorkspacePtyLiveness as RefreshFloatingWorkspacePtyLivenessMethods } from '../terminal/lifecycle/floating-session-liveness'
-import type { OrcaRuntimeWithTouchMobileSessionTabsForWorktree as TouchMobileSessionTabsForWorktreeMethods } from '../orca-runtime-touch-mobile-session-tabs-for-worktree'
-import type { OrcaRuntimeWithScheduleMobileSessionTabsChanged as ScheduleMobileSessionTabsChangedMethods } from '../orca-runtime-schedule-mobile-session-tabs-changed'
+import type { OrcaRuntimeWithTouchMobileSessionTabsForWorktree as TouchMobileSessionTabsForWorktreeMethods } from '../session-tabs/mobile-session-membership'
+import type { OrcaRuntimeWithScheduleMobileSessionTabsChanged as ScheduleMobileSessionTabsChangedMethods } from '../session-tabs/session-tabs-change-publication'
 import type { OrcaRuntimeWithSyncMobileSessionTabs as SyncMobileSessionTabsMethods } from '../session-tabs/mobile-session-reconciliation'
-import { OrcaRuntimeWithNotifySshStateChanged } from '../orca-runtime-notify-ssh-state-changed'
+import { OrcaRuntimeWithNotifySshStateChanged } from '../workspaces/workspace-host-notifications'
 import { HEADLESS_RUNTIME_WINDOW_ID } from '../../../shared/runtime-types'
+import { ActiveGroupViewFacts } from '../view-facts/active-group-view-facts'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 import type { RuntimePtyWorktreeRecord } from '../runtime-terminal-state-records'
 
 export abstract class OrcaRuntimeWithAttachWindow extends OrcaRuntimeWithNotifySshStateChanged {
+  /** The group each workspace shows, as the attached window last reported it (syncWindowGraph). */
+  protected readonly activeGroupViewFacts = new ActiveGroupViewFacts()
+
+  /** A paired desktop's `layout.reportView`: its reports count until its connection closes. */
+  reportClientView(
+    connectionId: string,
+    activeGroupByWorkspace: Readonly<Record<string, string | null>>,
+    refresh = false
+  ): void {
+    if (this.activeGroupViewFacts.mergeFromClient(connectionId, activeGroupByWorkspace, refresh)) {
+      this.registerSubscriptionCleanup(
+        `layout-view:${connectionId}`,
+        () => this.activeGroupViewFacts.dropClient(connectionId),
+        connectionId
+      )
+    }
+  }
+
+  protected editorOpenGroupFor(worktreeId: string): string | undefined {
+    return this.activeGroupViewFacts.groupFor(worktreeId, () => {
+      const hostId = this.tryGetWorkspaceSessionHostIdForWorktree(worktreeId)
+      return hostId
+        ? this.store?.getWorkspaceSession?.(hostId)?.activeGroupIdByWorktree?.[worktreeId]
+        : undefined
+    })
+  }
+
   protected abstract beginGraphReload(
     ...args: Parameters<HasTerminalsForWorktreeMethods['beginGraphReload']>
   ): ReturnType<HasTerminalsForWorktreeMethods['beginGraphReload']>
