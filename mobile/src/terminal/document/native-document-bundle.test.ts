@@ -314,8 +314,9 @@ describe('the bundled native document', () => {
     // 50: `laid-out-cell-box` reads the cell box xterm laid out, for web-ready and each render;
     // `terminal-grid-fit` is the one fit of that box and `terminal-cell-box` its one comparison,
     // both shared with the app. 52: `cell-metrics` and `selection-mode` split out to break cycles.
-    // 53: the bottom row backdrop extends a uniform row into the fractional gap.
-    expect(inputs).toHaveLength(53)
+    // 53: the bottom row backdrop extends a uniform row into the fractional gap. 55: OSC 52
+    // copies reach the device through desktop's own parser, `src/shared/osc52-clipboard`.
+    expect(inputs).toHaveLength(55)
     expect(script).not.toContain('__commonJS')
     // `__esm` wrappers are esbuild's answer to a cycle, and a cycle would make a module's top level
     // run at first import rather than where the bundle places it.

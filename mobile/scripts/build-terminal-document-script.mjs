@@ -42,11 +42,11 @@ const GENERATED_HEADER =
  * So is `absWorkingDir`: esbuild writes each module's path into the bundle as a comment, relative
  * to the working directory, so without it the artifact's bytes depend on where the generator was
  * run from — and from outside the repo the comments carry an absolute path with the builder's home
- * directory in it.
+ * directory in it. The repo root rather than `mobile/`, since the document imports `src/shared`.
  */
 export function terminalDocumentBuildOptions(extra = {}) {
   return {
-    absWorkingDir: mobileRoot,
+    absWorkingDir: path.join(mobileRoot, '..'),
     entryPoints: [ENTRY],
     bundle: true,
     format: 'iife',
