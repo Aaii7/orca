@@ -492,6 +492,30 @@ describe('WorktreeList real child WorktreeCard integration', () => {
     )
   })
 
+  it.each([
+    { pressed: 'option', worktreeId: 'parent' },
+    { pressed: 'option', worktreeId: 'child' },
+    { pressed: 'card', worktreeId: 'parent' },
+    { pressed: 'card', worktreeId: 'child' }
+  ])('activating the $worktreeId $pressed activates it once', async ({ pressed, worktreeId }) => {
+    const container = await renderWorktreeList()
+    const option = container.querySelector<HTMLElement>(
+      `[id="worktree-list-option-all%3A%7C${worktreeId}"]`
+    )
+    const target =
+      pressed === 'option'
+        ? option
+        : option?.querySelector<HTMLElement>('[data-worktree-card-surface="true"]')
+
+    expect(target).not.toBeNull()
+    await act(async () => {
+      target!.click()
+    })
+
+    expect(mockStore.activateWorktreeFromSidebar).toHaveBeenCalledTimes(1)
+    expect(mockStore.activateWorktreeFromSidebar).toHaveBeenCalledWith(worktreeId, 'local')
+  })
+
   it('does not activate a nested child while it is deleting', async () => {
     setLineageState({ deletingChild: true })
     const container = await renderWorktreeList()
