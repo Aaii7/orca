@@ -33,6 +33,18 @@ export function useBrowserHistoryShortcut({
     })
   }, [browserTabId, isActive, setBrowserHistoryPageId])
 
+  // Why: a history view left over a page the user switched away from would open its pick there.
+  useEffect(() => {
+    if (!isActive) {
+      return
+    }
+    return () => {
+      if (useAppStore.getState().browserHistoryPageId === browserTabId) {
+        setBrowserHistoryPageId(null)
+      }
+    }
+  }, [browserTabId, isActive, setBrowserHistoryPageId])
+
   useEffect(() => {
     if (chromeShortcutScope === 'inactive') {
       return
