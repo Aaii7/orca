@@ -17,17 +17,6 @@ describe('ProgramStatusFacetStore', () => {
     expect(store.set('p', null)).toBe(false)
   })
 
-  it('remembers when the program last entered working', () => {
-    const store = new ProgramStatusFacetStore()
-    store.set('p', facet(10, 5))
-    store.set('p', facet(20, 9))
-    expect(store.workingSince('p')).toBe(5)
-    store.set('p', { state: 'blocked', kind: 'permission', observedAt: 12 })
-    expect(store.workingSince('p')).toBe(5)
-    store.set('p', facet(30, 20))
-    expect(store.workingSince('p')).toBe(20)
-  })
-
   it('stitches a copy and never mutates the stored row', () => {
     const store = new ProgramStatusFacetStore()
     const row = { paneKey: 'p', state: 'working' }

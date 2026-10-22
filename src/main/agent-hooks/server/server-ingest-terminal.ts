@@ -213,23 +213,22 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
       }
       return
     }
-    const programWorkingSince = this.programStatusFacets.workingSince(paneKey)
-    const hookOwnsAgent =
-      event.fromProgramStatus === true &&
-      programStatusYieldsToHookRow(previous, event.payload, Date.now(), programWorkingSince)
+    let hookOwnsAgent = false
     if (event.fromProgramStatus === true) {
-      const hookSilenceEndsYield =
+      const now = Date.now()
+      const workingSince = this.programStatusFacets.noteState(paneKey, event.payload.state, now)
+      hookOwnsAgent = programStatusYieldsToHookRow(previous, event.payload, now, workingSince)
+      const yieldedTo = previous?.receivedAt
+      const yieldEndsAt =
+        yieldedTo === undefined
+          ? undefined
+          : yieldedTo + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS
+      if (
         hookOwnsAgent &&
-        previous !== undefined &&
-        !programStatusYieldsToHookRow(
-          previous,
-          event.payload,
-          previous.receivedAt + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS,
-          programWorkingSince
-        )
-      if (hookSilenceEndsYield) {
-        const yieldedTo = previous.receivedAt
-        const delayMs = yieldedTo + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS - Date.now()
+        yieldEndsAt !== undefined &&
+        !programStatusYieldsToHookRow(previous, event.payload, yieldEndsAt, workingSince)
+      ) {
+        const delayMs = yieldEndsAt - now
         this.hookSilenceRechecks.defer(paneKey, delayMs + 1, (currentPaneKey) => {
           const row = this.state.lastStatusByPaneKey.get(currentPaneKey)
           // Only against the hook observation it yielded to: a newer turn or a cleared pane drops it.

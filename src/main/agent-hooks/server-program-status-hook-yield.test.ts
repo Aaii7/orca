@@ -211,6 +211,12 @@ describe('OSC 7501 status beside hooks', () => {
     }
 
     it('leaves a turn the hooks settled done, through any hook silence (#31547)', async () => {
+      await openCodeHook('SessionBusy')
+      server.ingestProgramStatusFacet({
+        paneKey: PANE,
+        facet: { state: 'working', observedAt: Date.now() }
+      })
+      programStatus({ state: 'working', agentType: 'opencode' })
       await openCodeHook('SessionIdle')
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
       approvePlan()
@@ -223,12 +229,18 @@ describe('OSC 7501 status beside hooks', () => {
       await openCodeHook('SessionIdle')
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
       vi.advanceTimersByTime(1_000)
+      // One chunk: the facet holds only its last report, the lifecycle reports keep their order.
       server.ingestProgramStatusFacet({
         paneKey: PANE,
-        facet: { state: 'working', observedAt: Date.now() }
+        facet: {
+          state: 'blocked',
+          kind: 'permission',
+          message: 'Approve plan',
+          observedAt: Date.now()
+        }
       })
       programStatus({ state: 'working', agentType: 'opencode' })
-      approvePlan()
+      programStatus({ state: 'waiting', agentType: 'opencode', toolInput: 'Approve plan' })
       vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
       expect(paneRow()).toMatchObject({ state: 'waiting', toolInput: 'Approve plan' })
     })

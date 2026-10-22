@@ -2,21 +2,24 @@ import {
   programStatusFacetsEqual,
   type ProgramStatusFacet
 } from '../../../../shared/program-status/facet'
+import type { AgentStatusState } from '../../../../shared/agent-status-types'
 
 // Why a bound: one entry per pane that ever ran an OSC 7501 program; stale panes age out first.
 const MAX_PROGRAM_STATUS_FACETS = 1024
+
+type StoredProgramStatus = {
+  facet: ProgramStatusFacet
+  /** From the ordered lifecycle reports; a facet holds only a chunk's last one. */
+  lifecycleState?: AgentStatusState
+  /** When the program last entered `working`: evidence of new work after a hook-settled turn. */
+  workingSince?: number
+}
 
 /**
  * Each pane's latest OSC 7501 facet, kept apart from the status rows. A row's producer (hook or OSC)
  * owns its state; this map is owned by the OSC 7501 channel alone and is stitched onto rows only as
  * they are published, so it is never persisted and never compared as a row change.
  */
-type StoredProgramStatus = {
-  facet: ProgramStatusFacet
-  /** When the program last entered `working`: evidence of new work after a hook-settled turn. */
-  workingSince?: number
-}
-
 export class ProgramStatusFacetStore {
   private readonly byPaneKey = new Map<string, StoredProgramStatus>()
 
@@ -29,15 +32,8 @@ export class ProgramStatusFacetStore {
     if (programStatusFacetsEqual(previous?.facet, facet)) {
       return false
     }
-    const workingSince =
-      facet.state === 'working' && previous?.facet.state !== 'working'
-        ? facet.observedAt
-        : previous?.workingSince
     this.byPaneKey.delete(paneKey)
-    this.byPaneKey.set(paneKey, {
-      facet,
-      ...(workingSince !== undefined ? { workingSince } : {})
-    })
+    this.byPaneKey.set(paneKey, { ...previous, facet })
     if (this.byPaneKey.size > MAX_PROGRAM_STATUS_FACETS) {
       const oldest = this.byPaneKey.keys().next().value
       if (oldest !== undefined) {
@@ -51,8 +47,18 @@ export class ProgramStatusFacetStore {
     return this.byPaneKey.get(paneKey)?.facet
   }
 
-  workingSince(paneKey: string): number | undefined {
-    return this.byPaneKey.get(paneKey)?.workingSince
+  /** Records the program's projected lifecycle state, in report order, and returns when it last
+   *  entered `working`. */
+  noteState(paneKey: string, state: AgentStatusState, at: number): number | undefined {
+    const stored = this.byPaneKey.get(paneKey)
+    if (stored === undefined) {
+      return undefined
+    }
+    if (state === 'working' && stored.lifecycleState !== 'working') {
+      stored.workingSince = at
+    }
+    stored.lifecycleState = state
+    return stored.workingSince
   }
 
   delete(paneKey: string): void {
