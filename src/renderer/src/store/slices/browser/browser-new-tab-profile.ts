@@ -2,6 +2,7 @@ import { translate } from '@/i18n/i18n'
 import type { AppState } from '../../types'
 import type { NewBrowserTabProfile } from './browser-slice-contract'
 import { findWorktreeById } from '../worktree-helpers'
+import { parseWorkspaceKey } from '../../../../../shared/workspace-scope'
 import { parseExecutionHostId, type ExecutionHostId } from '../../../../../shared/execution-host'
 import {
   getManagedBrowserProfileOwner,
@@ -21,7 +22,10 @@ export function resolveNewBrowserTabProfile(
       ? getManagedBrowserProfileOwner(state.settings?.browserProfileScope, worktreeId)
       : null
   if (owner) {
-    return state.ensureManagedBrowserSessionProfile(owner, managedProfileLabel(state, owner))
+    return state.ensureManagedBrowserSessionProfile(
+      owner,
+      managedProfileLabel(state, owner, worktreeId)
+    )
   }
   return {
     sessionProfileId:
@@ -29,12 +33,20 @@ export function resolveNewBrowserTabProfile(
   }
 }
 
-function managedProfileLabel(state: AppState, owner: ManagedBrowserProfileOwner): string {
+function managedProfileLabel(
+  state: AppState,
+  owner: ManagedBrowserProfileOwner,
+  worktreeId: string
+): string {
   if (owner.kind === 'repo') {
     const name = state.repos.find((repo) => repo.id === owner.id)?.displayName ?? owner.id
     return translate('settings.browser.profileScope.repoProfileLabel', 'Repo: {{name}}', { name })
   }
-  const name = findWorktreeById(state.worktreesByRepo, owner.id)?.displayName ?? owner.id
+  const scope = parseWorkspaceKey(worktreeId)
+  const name =
+    (scope?.type === 'folder'
+      ? state.folderWorkspaces.find((folder) => folder.id === scope.folderWorkspaceId)?.name
+      : findWorktreeById(state.worktreesByRepo, worktreeId)?.displayName) || worktreeId
   return translate('settings.browser.profileScope.worktreeProfileLabel', 'Workspace: {{name}}', {
     name
   })

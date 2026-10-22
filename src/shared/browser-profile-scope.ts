@@ -11,18 +11,18 @@ export function getManagedBrowserProfileOwner(
   scope: BrowserProfileScope | undefined,
   worktreeId: string
 ): ManagedBrowserProfileOwner | null {
-  if (worktreeId === FLOATING_TERMINAL_WORKTREE_ID) {
+  if ((scope !== 'repo' && scope !== 'worktree') || worktreeId === FLOATING_TERMINAL_WORKTREE_ID) {
     return null
   }
   // Why: a standalone folder workspace belongs to no repo, so it owns its profile under either scope.
-  const isFolderWorkspace = parseWorkspaceKey(worktreeId)?.type === 'folder'
-  if (scope === 'repo' && !isFolderWorkspace) {
+  if (scope === 'repo' && parseWorkspaceKey(worktreeId)?.type !== 'folder') {
     return { kind: 'repo', id: getRepoIdFromWorktreeId(worktreeId) }
   }
-  if (scope === 'repo' || scope === 'worktree') {
-    return { kind: 'worktree', id: worktreeId }
-  }
-  return null
+  return { kind: 'worktree', id: worktreeId }
+}
+
+export function managedBrowserProfileOwnerKey(owner: ManagedBrowserProfileOwner): string {
+  return `${owner.kind}:${owner.id}`
 }
 
 export function isManagedBrowserProfileOf(

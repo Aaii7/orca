@@ -14,5 +14,5 @@ export function installElectronBrowserCommands(): void {
     const profile = browserSessionRegistry.getProfile(browserProfileId)
     return profile ? { id: profile.id, label: profile.label, scope: profile.scope } : undefined
   })
-  setManagedBrowserProfileDeleter((owner) => void deleteManagedBrowserProfile(owner))
+  setManagedBrowserProfileDeleter(deleteManagedBrowserProfile)
 }
