@@ -261,8 +261,14 @@ export function ChecksPanelActiveContent({
         onDeleteComment={pr ? handleDeleteComment : undefined}
         onSetReaction={canTargetPRComments ? handleSetReaction : undefined}
         onOpenCommentLocation={
-          activeWorktreeId
-            ? (path, line) => openAnnotationLocation({ worktreeId: activeWorktreeId, path, line })
+          activeWorktree
+            ? (path, line) =>
+                openAnnotationLocation({
+                  worktreeId: activeWorktree.id,
+                  executionHostId: activeWorktree.hostId,
+                  path,
+                  line
+                })
             : undefined
         }
       />

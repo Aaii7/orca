@@ -2,12 +2,11 @@ import { detectLanguage } from '@/lib/language-detect'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { useAppStore } from '@/store'
 import { scheduleEditorLineReveal } from '@/store/slices/editor/focus/editor-focus-reveal'
-import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import {
   getOpenableAnnotationLine,
   resolveAnnotationPathInsideWorktree
 } from './check-annotation-path'
-import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 export { getOpenableAnnotationLine }
 
@@ -15,10 +14,11 @@ export function openAnnotationLocation(params: {
   worktreeId: string
   path: string
   line: number
+  executionHostId?: ExecutionHostId
 }): void {
-  const { worktreeId, path, line } = params
+  const { worktreeId, path, line, executionHostId } = params
   const store = useAppStore.getState()
-  const worktree = findWorktreeById(selectWorktreesByRepo(store), worktreeId)
+  const worktree = store.getKnownWorktreeById(worktreeId, executionHostId)
   if (!worktree) {
     return
   }
@@ -31,7 +31,7 @@ export function openAnnotationLocation(params: {
 
   // Why: reuse the shared activation path so an annotation jump lands in the
   // same history stack as sidebar, palette, and terminal-link navigation.
-  activateAndRevealWorktree(worktreeId, { providesInitialSurface: true })
+  activateAndRevealWorktree(worktreeId, { providesInitialSurface: true, executionHostId })
 
   const fileId = store.openFile(
     { filePath: absolutePath, relativePath, worktreeId, language, mode: 'edit' },
