@@ -9,6 +9,10 @@ vi.mock('../telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../telemetry/cohort-classifier', () => ({
   getCohortAtEmit: vi.fn(() => ({ nth_repo_added: 2 }))
 }))
+// Why: the fixture owner pid is not a real process; the pane's owner is alive in every case here.
+vi.mock('../../shared/agent-process-presence-probe', () => ({
+  probeAgentProcessPresence: vi.fn(async () => 'live')
+}))
 
 beforeEach(() => {
   _internals.resetCachesForTests()

@@ -153,6 +153,8 @@ export function normalizeHookPayload(
   ) {
     return null
   }
+  // Why: presence needs the agent's own process; without it the hook cannot speak for liveness.
+  const sender = source === 'claude' ? readAgentProcessIdentity(record.agentProcess) : undefined
   const previousStatus = state.lastStatusByPaneKey.get(paneKey)
   const previousReceivedAt =
     previousStatus &&
@@ -177,6 +179,7 @@ export function normalizeHookPayload(
         agentPresence: previousStatus.providerSessionOnly ? undefined : previousStatus.agentPresence
       },
       incoming: source,
+      incomingProcess: sender,
       now: Date.now()
     }).inheritedFromActivePane
   ) {
@@ -222,11 +225,8 @@ export function normalizeHookPayload(
     }
   }
 
-  // Why: presence needs the agent's own process; without it the hook cannot speak for liveness.
-  const agentProcess =
-    source === 'claude' ? readAgentProcessIdentity(record.agentProcess) : undefined
-  const agentPresence = agentProcess
-    ? { agent: source, process: agentProcess, sessionOwner: true as const }
+  const agentPresence = sender
+    ? { agent: source, process: sender, sessionOwner: true as const }
     : undefined
   const sessionEndReason = readString(hookPayloadRecord, 'reason')
   if (

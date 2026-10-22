@@ -23,18 +23,23 @@ export abstract class AgentHookServerAgentPresence extends AgentHookServerLifecy
     const sender = event.agentPresence?.process
     const owner = row.agentPresence
     if (sender && owner?.process && !owner.ended && !isSameAgentProcess(sender, owner.process)) {
-      const paneKey = this.resolvePaneKeyAlias(row.paneKey)
-      const challenges = this.ownerChallengesByLiveSender
-      challenges.set(paneKey, (challenges.get(paneKey) ?? 0) + 1)
-      void this.checkAgentPresence(paneKey).finally(() => {
-        const remaining = (challenges.get(paneKey) ?? 1) - 1
-        if (remaining > 0) {
-          challenges.set(paneKey, remaining)
-        } else {
-          challenges.delete(paneKey)
-        }
-      })
+      void this.challengeAgentOwner(row.paneKey)
     }
+  }
+
+  /** Probes the owner because another live process reports from its pane. */
+  challengeAgentOwner(paneKey: string): Promise<AgentProcessVerdict | null> {
+    const resolved = this.resolvePaneKeyAlias(paneKey)
+    const challenges = this.ownerChallengesByLiveSender
+    challenges.set(resolved, (challenges.get(resolved) ?? 0) + 1)
+    return this.checkAgentPresence(resolved).finally(() => {
+      const remaining = (challenges.get(resolved) ?? 1) - 1
+      if (remaining > 0) {
+        challenges.set(resolved, remaining)
+      } else {
+        challenges.delete(resolved)
+      }
+    })
   }
 
   // Why: a live process already reports from these panes, so their owner's exit is not the pane's.

@@ -4,7 +4,11 @@ import {
   type AgentStatusState,
   type AgentType
 } from './agent-status-types'
-import { hasOtherAgentProcessOwner, type AgentProcessPresence } from './agent-process-presence'
+import {
+  hasOtherAgentProcessOwner,
+  type AgentProcessIdentity,
+  type AgentProcessPresence
+} from './agent-process-presence'
 import { resolveCanonicalPaneAgentIdentity } from './pane-agent-identity-adapter'
 import type { TuiAgent } from './tui-agent'
 
@@ -46,6 +50,7 @@ function isActiveExistingIdentity(
 export function resolveAgentStatusIdentity(args: {
   existing?: ExistingAgentIdentity
   incoming?: AgentType
+  incomingProcess?: AgentProcessIdentity
   now: number
   staleAfterMs?: number
 }): AgentIdentityResolution {
@@ -59,10 +64,22 @@ export function resolveAgentStatusIdentity(args: {
       inheritedFromActivePane: false
     }
   }
-  if (!args.existing || !existingAgentType || existingAgentType === incomingAgentType) {
+  if (!args.existing || !existingAgentType) {
     return {
       agentType: incomingAgentType,
       inheritedFromActivePane: false
+    }
+  }
+  if (existingAgentType === incomingAgentType) {
+    return {
+      agentType: incomingAgentType,
+      inheritedFromActivePane:
+        args.incomingProcess !== undefined &&
+        hasOtherAgentProcessOwner(
+          args.existing.agentPresence,
+          incomingAgentType,
+          args.incomingProcess
+        )
     }
   }
   const canonical = resolveCanonicalPaneAgentIdentity({

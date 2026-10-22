@@ -12,7 +12,7 @@ export type AgentProcessPresence = {
   agent: AgentType
   process?: AgentProcessIdentity
   ended?: true
-  /** This host verifies process ownership before accepting a different provider. */
+  /** This host verifies process ownership before accepting another agent process. */
   sessionOwner?: true
   /** Positive host observation of suspension, distinct from an unavailable process read. */
   suspended?: true
@@ -77,16 +77,20 @@ export function isSameAgentProcess(a: AgentProcessIdentity, b: AgentProcessIdent
   return a.pid === b.pid && a.platform === b.platform && a.startTime === b.startTime
 }
 
+/** Another live agent owns the pane: a different provider, or the same one in another proven process. */
 export function hasOtherAgentProcessOwner(
   presence: AgentProcessPresence | undefined,
-  incoming: string
+  incoming: string,
+  incomingProcess?: AgentProcessIdentity
 ): boolean {
   return Boolean(
     presence?.process &&
     presence.sessionOwner &&
     !presence.ended &&
     !presence.suspended &&
-    presence.agent !== incoming &&
-    presence.agent !== 'unknown'
+    presence.agent !== 'unknown' &&
+    // Why: a Claude tmux teammate is a separate claude process that inherits the lead's ORCA_PANE_KEY.
+    (presence.agent !== incoming ||
+      (incomingProcess && !isSameAgentProcess(presence.process, incomingProcess)))
   )
 }

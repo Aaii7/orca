@@ -1,6 +1,7 @@
 import { AgentHookStartup, listenForAgentHooks } from '../../../shared/agent-hook-startup'
 import { checkHookOwnerPresence } from '../../../shared/agent-hook-owner-presence'
 import { parsePaneKey } from '../../../shared/stable-pane-id'
+import type { AgentProcessVerdict } from '../../../shared/agent-process-presence'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 
@@ -27,6 +28,7 @@ type HookServerStartOptions = {
 
 export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHookLifecycle {
   private readonly startup = new AgentHookStartup()
+  abstract challengeAgentOwner(paneKey: string): Promise<AgentProcessVerdict | null>
 
   /** Start the loopback listener after hydration and spool replay have settled. */
   start(options?: HookServerStartOptions): Promise<void> {
@@ -138,7 +140,7 @@ export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHook
           return
         }
         await checkHookOwnerPresence(this.state, source, aliasedBody, this.env, (paneKey) =>
-          this.checkAgentPresence(paneKey)
+          this.challengeAgentOwner(paneKey)
         )
         if (!isStatusCurrent()) {
           res.writeHead(204)
