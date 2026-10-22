@@ -286,10 +286,10 @@ describe('createBrowserSlice annotations', () => {
   })
 
   it('gives each repo its own profile under the per-repo scope and holds pages until main has it', async () => {
-    const ensured = new Map<string, (profile: BrowserSessionProfile) => void>()
+    const created = new Map<string, (profile: BrowserSessionProfile) => void>()
     const ensureMock = vi.fn(
       ({ owner }: { owner: ManagedBrowserProfileOwner }) =>
-        new Promise<BrowserSessionProfile>((resolve) => ensured.set(owner.id, resolve))
+        new Promise<BrowserSessionProfile>((resolve) => created.set(owner.id, resolve))
     )
     Object.assign(mockApi.browser, { sessionEnsureManagedProfile: ensureMock })
     const { store, main } = await createTestStoreDrawnFromMain({
@@ -304,31 +304,40 @@ describe('createBrowserSlice annotations', () => {
     const other = store.getState().createBrowserTab('repo-b::/b/one', 'about:blank')
     await main.settle()
 
-    expect(first.sessionProfileId).toBe(sibling.sessionProfileId)
-    expect(other.sessionProfileId).not.toBe(first.sessionProfileId)
-    expect(first.sessionProfileId).not.toBe('user-default')
+    const placeholderId = first.sessionProfileId ?? ''
+    expect(sibling.sessionProfileId).toBe(placeholderId)
+    expect(other.sessionProfileId).not.toBe(placeholderId)
+    expect(placeholderId).not.toBe('user-default')
     expect(ensureMock.mock.calls.map(([args]) => args.owner)).toEqual([
       { kind: 'repo', id: 'repo-a' },
       { kind: 'repo', id: 'repo-b' }
     ])
-    const firstProfileId = first.sessionProfileId ?? ''
-    expect(store.getState().managedBrowserProfileStatusById[firstProfileId]).toBe('pending')
+    expect(store.getState().managedBrowserProfileStatusById[placeholderId]).toBe('pending')
 
     const profile: BrowserSessionProfile = {
-      id: firstProfileId,
+      id: 'minted-by-main',
       scope: 'isolated',
-      partition: `persist:orca-browser-session-${firstProfileId}`,
+      partition: 'persist:orca-browser-session-minted-by-main',
       label: 'Repo: repo-a',
-      source: null
+      source: null,
+      owner: { kind: 'repo', id: 'repo-a' }
     }
-    ensured.get('repo-a')?.(profile)
+    created.get('repo-a')?.(profile)
     await vi.waitFor(() =>
-      expect(store.getState().managedBrowserProfileStatusById[firstProfileId]).toBeUndefined()
+      expect(store.getState().managedBrowserProfileStatusById[placeholderId]).toBeUndefined()
     )
+    const repoATabs = ['repo-a::/a/one', 'repo-a::/a/two'].flatMap(
+      (worktreeId) => store.getState().browserTabsByWorktree[worktreeId] ?? []
+    )
+    expect(repoATabs.map((tab) => tab.sessionProfileId)).toEqual([
+      'minted-by-main',
+      'minted-by-main'
+    ])
     expect(store.getState().browserSessionProfilesByHostId.local).toEqual([profile])
 
-    store.getState().createBrowserTab('repo-a::/a/three', 'about:blank')
-    expect(ensureMock).toHaveBeenCalledTimes(2)
+    const later = store.getState().createBrowserTab('repo-a::/a/three', 'about:blank')
+    expect(later.sessionProfileId).toBe('minted-by-main')
+    expect(store.getState().managedBrowserProfileStatusById['minted-by-main']).toBeUndefined()
   })
 
   it('keeps the shared default profile under the shared scope', async () => {

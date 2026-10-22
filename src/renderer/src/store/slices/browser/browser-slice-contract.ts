@@ -240,7 +240,7 @@ export type BrowserSlice = {
     label: string
   ) => Promise<BrowserSessionProfile | null>
   deleteBrowserSessionProfile: (profileId: string) => Promise<boolean>
-  /** Names a repo's or workspace's own local profile at once and creates it in main on first use. */
+  /** A repo's or workspace's own local profile id, at once; a placeholder until main first creates it. */
   ensureManagedBrowserSessionProfile: (owner: ManagedBrowserProfileOwner, label: string) => string
   /** A removed repo's or workspace's own profile goes with it, whichever host ran the removal. */
   deleteManagedBrowserSessionProfile: (owner: ManagedBrowserProfileOwner) => Promise<void>

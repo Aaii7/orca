@@ -223,21 +223,16 @@ class BrowserSessionRegistry {
   async createProfile(
     scope: BrowserSessionProfileScope,
     label: string,
-    id: string = randomUUID()
+    owner?: BrowserSessionProfile['owner']
   ): Promise<BrowserSessionProfile | null> {
     // Why: the registry is also an IPC boundary, so runtime types alone cannot keep invalid values out of persisted metadata.
     if (scope !== 'isolated' && scope !== 'imported') {
       return null
     }
+    const id = randomUUID()
     // Why: deterministic partition-from-id lets main rebuild the allowlist on restart without a separate partition→profile map.
     const partition = getOrcaProfileBrowserSessionPartition(this.activeOrcaProfileId, id)
-    const profile: BrowserSessionProfile = {
-      id,
-      scope,
-      partition,
-      label,
-      source: null
-    }
+    const profile: BrowserSessionProfile = { id, scope, partition, label, source: null, owner }
     try {
       await installBrowserSessionPartitionPolicies(profile)
     } catch (error) {
