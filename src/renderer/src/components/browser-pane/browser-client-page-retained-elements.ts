@@ -1,4 +1,5 @@
 import { ORCA_BROWSER_PAGE_GUEST_WEB_PREFERENCES_ATTRIBUTE } from '../../../../shared/browser-guest-web-preferences'
+import { handleGuestWindowCloseMessage } from './host-guest/browser-page-window-close'
 import { isBlankBrowserUrl } from '@/lib/browser-palette-search'
 
 export function createBrowserClientPageRetainedRoot(document: Document): HTMLDivElement {
@@ -52,14 +53,17 @@ export function hideRetainedHostWhileGuestIsBlank(
 export function createBrowserClientPageWebview(options: {
   createWebview?: () => Electron.WebviewTag
   document: Document
-  partition: string
+  identity: { browserPageId: string; partition: string }
 }): Electron.WebviewTag {
   const webview =
     options.createWebview?.() ?? (options.document.createElement('webview') as Electron.WebviewTag)
-  webview.setAttribute('partition', options.partition)
+  webview.setAttribute('partition', options.identity.partition)
   webview.setAttribute('webpreferences', ORCA_BROWSER_PAGE_GUEST_WEB_PREFERENCES_ATTRIBUTE)
   webview.setAttribute('src', 'about:blank')
   Object.assign(webview.style, { display: 'flex', width: '100%', height: '100%' })
+  webview.addEventListener('ipc-message', (event) =>
+    handleGuestWindowCloseMessage(options.identity.browserPageId, webview, event)
+  )
   return webview
 }
 

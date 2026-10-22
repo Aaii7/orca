@@ -8,6 +8,7 @@ import {
   releaseBrowserAutomationVisibility
 } from '@/components/browser-pane/host-guest/browser-automation-visibility'
 import { acquireBrowserAutomationBootstrapLease } from './browser-automation-bootstrap-lease'
+import { markBrowserPageOpenedByPage } from '@/components/browser-pane/host-guest/browser-page-window-close'
 import { requestBrowserFocus } from '@/components/browser-pane/host-guest/browser-focus'
 import {
   beginAgentInputFocusGuard,
@@ -166,9 +167,12 @@ export function registerBrowserStateIpcBridge(
             }
           : {})
       })
-      // Why: keyboard focus follows a foreground tab, so Cmd/Ctrl+W closes it instead of its opener.
-      if (activate !== false && created.activePageId) {
-        requestBrowserFocus({ pageId: created.activePageId, target: 'webview' })
+      if (created.activePageId) {
+        markBrowserPageOpenedByPage(created.activePageId)
+        // Why: keyboard focus follows a foreground tab, so Cmd/Ctrl+W closes it instead of its opener.
+        if (activate !== false) {
+          requestBrowserFocus({ pageId: created.activePageId, target: 'webview' })
+        }
       }
     })
   )
