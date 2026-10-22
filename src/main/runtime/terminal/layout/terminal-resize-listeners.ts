@@ -20,7 +20,7 @@ import type {
 import { classifyWorkerTerminalProcessIncarnation } from '../../orchestration/worker-terminal-process-liveness'
 import { parseWorkerTerminalHostScope } from '../../../../shared/worker-terminal-host-scope'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
-import { buildOrchestrationTaskDisplayMetadata } from '../../../../shared/orchestration-task-display'
+import { escalateWorkerFailure } from '../../orchestration/worker-failure-escalation'
 import { LOCAL_EXECUTION_HOST_ID, toSshExecutionHostId } from '../../../../shared/execution-host'
 
 export abstract class OrcaRuntimeWithSubscribeToTerminalResize extends OrcaRuntimeWithApplyMobileDisplayMode {
@@ -90,57 +90,27 @@ export abstract class OrcaRuntimeWithSubscribeToTerminalResize extends OrcaRunti
       return
     }
 
-    // Why: create an escalation message so the coordinator is notified about
-    // the unexpected exit on its next check cycle, even if the circuit breaker
-    // hasn't tripped yet.
-    try {
-      const owningRun = this._orchestrationDb.getRun?.(dispatch.run_id)
-      const active = this._orchestrationDb.getActiveCoordinatorRun?.()
-      const recipient =
-        owningRun && owningRun.legacy !== 1
-          ? { to: `run:${owningRun.id}`, runId: owningRun.id }
-          : active
-            ? { to: active.coordinator_handle, runId: undefined }
-            : null
-      if (!recipient) {
-        return
-      }
-      const task = this._orchestrationDb.getTask?.(dispatch.task_id, dispatch.run_id)
-      // Why: prefer the explicit task title and keep the derived one single-line and bounded;
-      // a raw multi-paragraph spec inlined here breaks the coordinator's escalation banner.
-      const title =
-        typeof task?.spec === 'string'
-          ? buildOrchestrationTaskDisplayMetadata({
-              spec: task.spec,
-              taskTitle: task.task_title,
-              displayName: task.display_name
-            }).taskTitle
-          : ''
-      const named = title ? `"${title}" (${dispatch.task_id})` : dispatch.task_id
-      const escalation = this._orchestrationDb.insertMessage({
+    // Why: the coordinator hears about the unexpected exit on its next check cycle, even if the
+    // circuit breaker hasn't tripped yet.
+    escalateWorkerFailure(
+      this._orchestrationDb,
+      dispatch,
+      {
         from: handle,
-        to: recipient.to,
-        subject: `Agent exited unexpectedly (${errorContext})`,
-        body: `Worker ${handle} stopped while running task ${named}. ${errorContext}.${settled?.status === 'circuit_broken' ? ' This task has now failed too many times, so it will not be retried automatically.' : settled?.status === 'failed' ? ' The task is ready to be dispatched again.' : ''}`,
-        type: 'escalation',
-        priority: 'high',
-        payload: JSON.stringify({
+        describe: (task) => ({
+          subject: `Agent exited unexpectedly (${errorContext})`,
+          body: `Worker ${handle} stopped while running task ${task}. ${errorContext}.${settled?.status === 'circuit_broken' ? ' This task has now failed too many times, so it will not be retried automatically.' : settled?.status === 'failed' ? ' The task is ready to be dispatched again.' : ''}`
+        }),
+        payload: {
           taskId: dispatch.task_id,
           dispatchId: dispatch.id,
           exitCode,
           exitCause: cause,
           handle
-        }),
-        runId: dispatch.run_id
-      })
-      this.notifyMessageArrived(escalation.to_handle, escalation.type)
-    } catch (error) {
-      console.warn('[orchestration] failed to escalate worker exit', {
-        dispatchId: dispatch.id,
-        runId: dispatch.run_id,
-        error
-      })
-    }
+        }
+      },
+      (to, type) => this.notifyMessageArrived(to, type)
+    )
   }
 
   async listTerminals(

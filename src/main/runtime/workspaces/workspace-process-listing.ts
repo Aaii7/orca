@@ -38,6 +38,10 @@ import { createStructuredChatNamingHandler } from '../../native-chat/structured-
 import { structuredChatNamingDeps } from '../structured-chat-naming-runtime'
 import { getProfileUserDataPath } from '../../orca-profiles/profile-storage-paths'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
+import { escalateChatWorkerError } from '../orchestration/chat-worker-error-escalation'
+import { readStructuredSessionJournal } from '../orchestration/structured-mailbox-pointer-host'
+import type { AgentSessionStatusSummary } from '../../../shared/agent-session-wire'
+import type { StructuredAgentSessionStatusObserverOptions } from '../../native-chat/agent-session-wire/structured-agent-session-status-observation'
 import { buildWorktreeListingPage } from '../worktree-listing-host-scope'
 import {
   structuredWorkerOpenTaskTitle,
@@ -290,6 +294,7 @@ export abstract class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithWorktr
       // workspace rename listens to instead of `agentStatus:set`.
       onSessionStatusChanged: (summary, options) => {
         this.onStructuredSessionStatusForMail(summary)
+        this.onStructuredSessionStatusForErrorMail(summary, options)
         nameChat(summary, options)
         void maybeAutoRenameWorkspaceOnFirstStructuredTurn(
           summary,
@@ -314,6 +319,19 @@ export abstract class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithWorktr
       // its agent running. No database answers no.
       hasOpenDispatch: (record) =>
         structuredWorkerOwesWork(this.getOrchestrationDbIfAvailable?.() ?? null, record)
+    })
+  }
+
+  /** A chat worker whose request settled failed tells the Run that dispatched it. */
+  onStructuredSessionStatusForErrorMail(
+    summary: AgentSessionStatusSummary,
+    options: StructuredAgentSessionStatusObserverOptions
+  ): void {
+    void escalateChatWorkerError(summary, options, {
+      enabled: () => this.isChatWorkerErrorEscalationEnabled(),
+      db: () => this.getOrchestrationDbIfAvailable(),
+      readJournal: readStructuredSessionJournal,
+      notify: (handle, messageType) => this.notifyMessageArrived(handle, messageType)
     })
   }
 }

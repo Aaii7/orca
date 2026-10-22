@@ -29,6 +29,7 @@ import {
   getNestedWorkerDepthDescription,
   getNestedWorkerDepthTitle
 } from './nested-worker-depth-copy'
+import { OrchestrationChatErrorSetting } from './OrchestrationChatErrorSetting'
 
 const EXAMPLE_ICONS = {
   handoff: ArrowRightLeft,
@@ -52,9 +53,9 @@ export function OrchestrationPane({
   updateSettings
 }: OrchestrationPaneProps): React.JSX.Element {
   const searchQuery = useAppStore((s) => s.settingsSearchQuery)
-  const showNestedWorkerDepth = !isPairedWebClientWindow()
+  const showLocalRuntimeSettings = !isPairedWebClientWindow()
   const searchEntries = getOrchestrationPaneSearchEntries({
-    includeNestedWorkerDepth: showNestedWorkerDepth
+    includeLocalRuntimeSettings: showLocalRuntimeSettings
   })
   const showOrchestration = matchesSettingsSearch(searchQuery, searchEntries)
   const [skillPromptOpen, setSkillPromptOpen] = useState(false)
@@ -156,7 +157,7 @@ export function OrchestrationPane({
         }
       />
 
-      {showNestedWorkerDepth ? (
+      {showLocalRuntimeSettings ? (
         <NumberField
           label={getNestedWorkerDepthTitle()}
           description={getNestedWorkerDepthDescription()}
@@ -167,6 +168,9 @@ export function OrchestrationPane({
             void updateSettings({ nestedWorkerMaxDepth })
           }}
         />
+      ) : null}
+      {showLocalRuntimeSettings ? (
+        <OrchestrationChatErrorSetting settings={settings} updateSettings={updateSettings} />
       ) : null}
 
       <OrchestrationSkillPromptDialog

@@ -238,7 +238,8 @@ export class StructuredAgentSessionStatusFeed {
     try {
       this.deps.onStatusChanged?.(summary, {
         replay: options?.replay === true,
-        firstInputSubmissionKey: projection.firstInputSubmissionKey
+        firstInputSubmissionKey: projection.firstInputSubmissionKey,
+        latestRequest: projection.state.latestRequest
       })
     } catch (error) {
       // An observer must never cost the subscribers their status event.

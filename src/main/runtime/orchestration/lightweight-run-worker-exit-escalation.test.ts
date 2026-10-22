@@ -511,7 +511,7 @@ describe('STA-4604 worker PTY exit escalation reaches the coordinator', () => {
       terminationReason: 'exited'
     })
     expect(warn).toHaveBeenCalledWith(
-      '[orchestration] failed to escalate worker exit',
+      '[orchestration] failed to escalate worker failure',
       expect.objectContaining({ dispatchId: 'ctx-1', runId: 'run-1' })
     )
     warn.mockRestore()
