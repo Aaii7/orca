@@ -5,11 +5,11 @@ import { quotePosixShellDoubleQuotedApostrophe } from '../../../../shared/shell-
 // Why: environment overrides are pasteable settings text; reject huge drafts before tokenizing.
 export const AGENT_DEFAULT_ENV_DRAFT_MAX_BYTES = 8 * 1024
 
-export type AgentDefaultEnvDraftError = 'too-large' | 'unclosed-quote'
+export type AgentDefaultEnvDraftInvalidReason = 'too-large' | 'unclosed-quote'
 
 export type AgentDefaultEnvDraftParseResult = {
   env: Record<string, string>
-  error: AgentDefaultEnvDraftError | null
+  invalidReason: AgentDefaultEnvDraftInvalidReason | null
 }
 
 export function stringifyAgentDefaultEnvDraft(env: Record<string, string>): string {
@@ -28,12 +28,12 @@ function quoteAgentDefaultEnvDraftWord(word: string): string {
 
 export function parseAgentDefaultEnvDraft(value: string): AgentDefaultEnvDraftParseResult {
   if (isClipboardTextByteLengthOverLimit(value, AGENT_DEFAULT_ENV_DRAFT_MAX_BYTES)) {
-    return { env: {}, error: 'too-large' }
+    return { env: {}, invalidReason: 'too-large' }
   }
   // Why literal backslashes: Windows paths typed without quotes must keep their separators.
   const tokenized = tokenizeCustomCommandTemplate(value, 'literal')
   if (!tokenized.ok) {
-    return { env: {}, error: 'unclosed-quote' }
+    return { env: {}, invalidReason: 'unclosed-quote' }
   }
 
   const env: Record<string, string> = {}
@@ -44,5 +44,5 @@ export function parseAgentDefaultEnvDraft(value: string): AgentDefaultEnvDraftPa
     }
     env[pair.slice(0, separatorIndex)] = pair.slice(separatorIndex + 1)
   }
-  return { env, error: null }
+  return { env, invalidReason: null }
 }

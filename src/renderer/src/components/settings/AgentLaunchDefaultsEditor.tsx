@@ -5,7 +5,7 @@ import { translate } from '@/i18n/i18n'
 import {
   parseAgentDefaultEnvDraft,
   stringifyAgentDefaultEnvDraft,
-  type AgentDefaultEnvDraftError
+  type AgentDefaultEnvDraftInvalidReason
 } from './agent-default-env-draft'
 import { useAgentLaunchFieldWrite } from './use-agent-launch-field-write'
 
@@ -159,15 +159,15 @@ export function AgentDefaultEnvInput({
   const defaultEnvText = stringifyAgentDefaultEnvDraft(defaultEnv)
   const draftSeed = stringifyAgentDefaultEnvDraft(envOverride)
   const [envDraft, setEnvDraft] = useState(draftSeed)
-  const [envDraftError, setEnvDraftError] = useState<AgentDefaultEnvDraftError | null>(null)
+  const [envDraftError, setEnvDraftError] = useState<AgentDefaultEnvDraftInvalidReason | null>(null)
   const envDraftErrorId = useId()
   const commitEnv = (): void => {
     if (envDraft === draftSeed) {
       return
     }
     const parsedDraft = parseAgentDefaultEnvDraft(envDraft)
-    setEnvDraftError(parsedDraft.error)
-    if (!parsedDraft.error) {
+    setEnvDraftError(parsedDraft.invalidReason)
+    if (!parsedDraft.invalidReason) {
       onSaveEnv(parsedDraft.env)
     }
   }

@@ -25,7 +25,7 @@ describe('agent default environment draft', () => {
 
     expect(parseAgentDefaultEnvDraft(stringifyAgentDefaultEnvDraft(env))).toEqual({
       env,
-      error: null
+      invalidReason: null
     })
   })
 
@@ -38,7 +38,7 @@ describe('agent default environment draft', () => {
   it('rejects a draft with an unclosed quote', () => {
     expect(parseAgentDefaultEnvDraft('A="two words B=keep')).toEqual({
       env: {},
-      error: 'unclosed-quote'
+      invalidReason: 'unclosed-quote'
     })
   })
 
@@ -47,13 +47,13 @@ describe('agent default environment draft', () => {
 
     expect(parseAgentDefaultEnvDraft(draft)).toEqual({
       env: { FOO: 'bar', BAZ: 'qux', TOKEN: 'value=kept' },
-      error: null
+      invalidReason: null
     })
   })
 
   it('rejects oversized pasted environment drafts', () => {
     const draft = 'SECRET=value '.repeat(AGENT_DEFAULT_ENV_DRAFT_MAX_BYTES)
 
-    expect(parseAgentDefaultEnvDraft(draft)).toEqual({ env: {}, error: 'too-large' })
+    expect(parseAgentDefaultEnvDraft(draft)).toEqual({ env: {}, invalidReason: 'too-large' })
   })
 })
