@@ -114,9 +114,7 @@ export class PiRpcTurns {
         }
         return
       case 'agent_start':
-        if (!this.active && !this.delivery.holdsDispatch) {
-          throw new Error('Pi started an unsolicited agent run')
-        }
+        // Extensions can start a run on an idle session (a subagent waking its parent).
         this.touch()
         this.open(at)
         this.skipInitialUserEcho = this.delivery.consumeNext()
