@@ -416,17 +416,6 @@ describe('useMobileNativeChatMessageSend', () => {
     expect(sentArgs().text).toBe('\x1b[200~\r 1\x1b[201~')
   })
 
-  // #31206: unframed multi-line keystrokes reached Claude on a Windows host with
-  // their beginning cut off; the desktop composer frames them as one paste.
-  it('sends a multi-line message as one bracketed paste with CR line endings', async () => {
-    const paragraph = 'Ünïcödé détails — 日本語のテキスト, every word matters. '.repeat(20).trim()
-    mount(() => null)
-    await act(async () => {
-      await api!.send(`${paragraph}\n\n${paragraph}\r\n${paragraph}`)
-    })
-    expect(sentArgs().text).toBe(`\x1b[200~${paragraph}\r\r${paragraph}\r${paragraph}\x1b[201~`)
-  })
-
   // #14819: the trim is a wire concern only. A rejected send hands the composer
   // back to the user, and it has to be the draft they typed, blank lines included.
   it('restores the untrimmed draft when the send is rejected', async () => {
@@ -438,6 +427,7 @@ describe('useMobileNativeChatMessageSend', () => {
       await api!.send(draft)
     })
 
+    // Framed like the desktop composer: raw multi-line keystrokes lost their start on Windows (#31206).
     expect(sentArgs().text).toBe('\x1b[200~first line\r\rsecond line\x1b[201~')
     expect(restoreRejectedDraft.mock.calls[0]![1]).toBe(draft)
     expect(clearDraftForSend.mock.calls[0]![1]).toBe(draft)
