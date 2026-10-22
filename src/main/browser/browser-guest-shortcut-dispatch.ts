@@ -7,6 +7,7 @@ import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
 import type { BrowserPageZoomDirection } from '../../shared/browser-page-zoom'
 import type { BrowserFindTarget } from '../../shared/browser-find-source'
 import type { ResolveRenderer } from './browser-guest-renderer-target'
+import { matchesGuestTabShortcut } from './browser-guest-tab-shortcut'
 
 export type ShouldForwardDictationShortcut = () => boolean
 export type IsMobileEmulatorEnabled = () => boolean
@@ -70,46 +71,10 @@ export function forwardGuestShortcutInput(
     return true
   }
 
-  // Why: match outside the allowlist so both the new Shift binding and upgraders' seeded Alt binding reach the renderer.
-  const switchAllTypesDirection = keybindingMatchesAction(
-    'tab.nextAllTypes',
-    input,
-    process.platform,
-    keybindings
-  )
-    ? 1
-    : keybindingMatchesAction('tab.previousAllTypes', input, process.platform, keybindings)
-      ? -1
-      : null
-  if (switchAllTypesDirection !== null) {
-    event.preventDefault()
-    const renderer = resolveRenderer(browserTabId)
-    renderer?.send('ui:switchTabAcrossAllTypes', switchAllTypesDirection)
-    return true
-  }
-
   if (keybindingMatchesAction('tab.previousRecent', input, process.platform, keybindings)) {
     event.preventDefault()
     const renderer = resolveRenderer(browserTabId)
     renderer?.send('ui:switchRecentTab')
-    return true
-  }
-
-  // Why: terminal-tab switching defaults to Ctrl+PageUp/PageDown but goes through the registry so disable/rebind still works.
-  const terminalTabDirection = keybindingMatchesAction(
-    'tab.nextTerminal',
-    input,
-    process.platform,
-    keybindings
-  )
-    ? 1
-    : keybindingMatchesAction('tab.previousTerminal', input, process.platform, keybindings)
-      ? -1
-      : null
-  if (terminalTabDirection !== null) {
-    event.preventDefault()
-    const renderer = resolveRenderer(browserTabId)
-    renderer?.send('ui:switchTerminalTab', terminalTabDirection)
     return true
   }
 
@@ -119,22 +84,7 @@ export function forwardGuestShortcutInput(
   }
   // Why: floating-panel guests route close/index chords to the panel (carrying their source id) so they hit the floating workspace, not the main tab strip.
   const isFloatingGuest = resolveWorktreeId?.(browserTabId) === FLOATING_TERMINAL_WORKTREE_ID
-  if (keybindingMatchesAction('tab.newBrowser', input, process.platform, keybindings)) {
-    renderer.send('ui:newBrowserTab')
-  } else if (
-    process.platform === 'darwin' &&
-    (isMobileEmulatorEnabled?.() ?? true) &&
-    keybindingMatchesAction('tab.newSimulator', input, process.platform, keybindings)
-  ) {
-    renderer.send('ui:newSimulatorTab')
-  } else if (keybindingMatchesAction('tab.newMarkdown', input, process.platform, keybindings)) {
-    renderer.send('ui:newMarkdownTab')
-  } else if (keybindingMatchesAction('tab.newTerminal', input, process.platform, keybindings)) {
-    // Why: Cmd/Ctrl+T opens a terminal even when a browser guest is focused (Shift+B is the new-browser-tab shortcut).
-    renderer.send('ui:newTerminalTab')
-  } else if (
-    keybindingMatchesAction('browser.focusAddressBar', input, process.platform, keybindings)
-  ) {
+  if (keybindingMatchesAction('browser.focusAddressBar', input, process.platform, keybindings)) {
     // Why: the address bar lives in renderer chrome, not the guest page; forward so the pane owning it can focus its input.
     renderer.send('ui:focusBrowserAddressBar', { browserPageId: browserTabId })
   } else if (keybindingMatchesAction('browser.hardReload', input, process.platform, keybindings)) {
@@ -173,12 +123,6 @@ export function forwardGuestShortcutInput(
       // layouts (guest focus doesn't reach the group's focus-capture), silently dropping the close.
       renderer.send('ui:closeActiveTab', { sourceId: browserTabId })
     }
-  } else if (keybindingMatchesAction('tab.nextSameType', input, process.platform, keybindings)) {
-    renderer.send('ui:switchTab', 1)
-  } else if (
-    keybindingMatchesAction('tab.previousSameType', input, process.platform, keybindings)
-  ) {
-    renderer.send('ui:switchTab', -1)
   } else if (action?.type === 'toggleWorktreePalette') {
     renderer.send('ui:toggleWorktreePalette')
   } else if (action?.type === 'openQuickOpen') {
@@ -216,6 +160,20 @@ export function forwardGuestShortcutInput(
       return false
     }
     renderer.send('ui:dictationKeyDown')
+  } else if (
+    matchesGuestTabShortcut(
+      input,
+      process.platform,
+      keybindings,
+      isMobileEmulatorEnabled?.() ?? true
+    )
+  ) {
+    // Why: replay into the renderer's own tab-shortcut handler so a page answers tab chords exactly as the rest of Orca does.
+    const { key, code, alt, meta, control, shift, doubleTapModifier } = input
+    renderer.send(
+      'ui:browserPageTabShortcut',
+      doubleTapModifier ? { doubleTapModifier } : { key, code, alt, meta, control, shift }
+    )
   } else {
     return false
   }

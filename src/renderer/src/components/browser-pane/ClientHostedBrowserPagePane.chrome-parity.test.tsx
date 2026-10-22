@@ -96,6 +96,7 @@ beforeEach(() => {
       onFindInBrowserPage: (_source: unknown, callback: () => void) =>
         findRequests.subscribe(callback),
       onBrowserHistoryNavigate: historyNavigate.subscribe,
+      onBrowserPageSwipe: () => () => {},
       onReloadBrowserPage: reloadRequests.subscribe,
       onHardReloadBrowserPage: hardReloadRequests.subscribe,
       onZoomBrowserPage: zoomRequests.subscribe,

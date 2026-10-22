@@ -12,6 +12,7 @@ import type { BrowserChromeShortcutScope } from '../describe-page/browser-page-t
 import type { BrowserAddressBarSelection } from './browser-address-bar-edit-session'
 import type { BrowserPageGuestFocus } from './browser-page-guest-focus'
 import { addAppKeyListener, removeAppKeyListener } from '@/lib/app-keyboard-router'
+import { useWebviewDragPassthroughActive } from '../host-guest/use-webview-drag-passthrough-active'
 
 /** Frames an address-bar grab keeps retrying before it lets the guest have focus back. */
 const ADDRESS_BAR_FOCUS_FRAMES = 6
@@ -139,6 +140,20 @@ export function useBrowserPageChromeFocus({
     [addressBarInputRef, cancelAddressBarFocusGrab, focusAddressBarNow]
   )
 
+  /** Retries for a few frames: a pane activated this commit may not have attached its guest yet. */
+  const focusGuestOverFrames = useCallback((): (() => void) => {
+    let frameId = 0
+    let attempts = 0
+    const runFocus = (): void => {
+      attempts += 1
+      if (!focusGuestNow() && attempts < ADDRESS_BAR_FOCUS_FRAMES) {
+        frameId = window.requestAnimationFrame(runFocus)
+      }
+    }
+    frameId = window.requestAnimationFrame(runFocus)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [focusGuestNow])
+
   useEffect(() => {
     if (!isActive) {
       return
@@ -201,25 +216,15 @@ export function useBrowserPageChromeFocus({
     // Why: lowering the latch is not enough — a grab already in flight would spend its remaining
     // frames dragging focus back off the page this request just aimed at.
     cancelAddressBarFocusGrab()
-    let cancelled = false
-    let frameId = 0
-    let attempts = 0
-    const runFocus = (): void => {
-      if (cancelled) {
-        return
-      }
-      attempts += 1
-      if (!focusGuestNow() && attempts < ADDRESS_BAR_FOCUS_FRAMES) {
-        frameId = window.requestAnimationFrame(runFocus)
-      }
-    }
     // Why: focus can be queued before the pane mounts; persisting outside React lets it be claimed on mount instead of racing an event.
-    frameId = window.requestAnimationFrame(runFocus)
-    return () => {
-      cancelled = true
-      window.cancelAnimationFrame(frameId)
-    }
-  }, [browserTabId, cancelAddressBarFocusGrab, focusGuestNow, isActive, startAddressBarFocusGrab])
+    return focusGuestOverFrames()
+  }, [
+    browserTabId,
+    cancelAddressBarFocusGrab,
+    focusGuestOverFrames,
+    isActive,
+    startAddressBarFocusGrab
+  ])
 
   useEffect(() => {
     if (!isActive) {
@@ -250,6 +255,38 @@ export function useBrowserPageChromeFocus({
       cancelAddressBarFocusGrab()
     }
   }, [browserTabId, cancelAddressBarFocusGrab, focusGuestNow, isActive, startAddressBarFocusGrab])
+
+  // Why a ref: the split can become focused mid-retry, and re-running the effect would cancel it.
+  const chromeShortcutScopeRef = useRef(chromeShortcutScope)
+  useEffect(() => {
+    chromeShortcutScopeRef.current = chromeShortcutScope
+  })
+  const dragPassthroughActive = useWebviewDragPassthroughActive()
+  const focusedForActivationRef = useRef(false)
+  // Why: switching to a page hands it the keyboard, as switching to a terminal does (#20533).
+  // Declared after the address-bar effects so a new blank tab's grab has already raised the latch.
+  useEffect(() => {
+    if (!isActive) {
+      focusedForActivationRef.current = false
+      return
+    }
+    // Why the drag gate defers rather than consumes: a drag preview-activates what it hovers, and
+    // focusing another WebContents mid-drag reads as an aborted drag; the focus lands once it ends.
+    if (focusedForActivationRef.current || dragPassthroughActive) {
+      return
+    }
+    focusedForActivationRef.current = true
+    // Why: a page activated in a split the user isn't in (an agent opening it there) must not pull
+    // the keyboard across splits.
+    if (
+      chromeShortcutScopeRef.current === 'inactive' ||
+      keepAddressBarFocusRef.current ||
+      focusGuestNow()
+    ) {
+      return
+    }
+    return focusGuestOverFrames()
+  }, [dragPassthroughActive, focusGuestNow, focusGuestOverFrames, isActive])
 
   return { focusAddressBarNow, focusGuestNow, startAddressBarFocusGrab, keepAddressBarFocusRef }
 }
