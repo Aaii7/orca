@@ -1,10 +1,7 @@
 import type { WebContents } from 'electron'
 import { BrowserError } from './browser-error'
-import {
-  assertRemoteCliPageAccess,
-  readRemoteCliAdmittedPage,
-  trackRemoteCliInput
-} from './remote-cli-page-admission'
+import { withAgentInputInjection } from './agent-input-injection'
+import { readRemoteCliAdmittedPage, trackRemoteCliInput } from './remote-cli-page-admission'
 
 // Why: Chromium resizes the page's view for these without checking the view still exists
 // (WebContentsImpl::SetDeviceEmulationSize). A crashed renderer takes its view with it until the
@@ -14,8 +11,10 @@ const VIEW_RESIZING_CDP_METHODS: ReadonlySet<string> = new Set([
   'Emulation.setVisibleSize'
 ])
 
-type GuestCdpTarget = Pick<WebContents, 'isDestroyed' | 'isCrashed'> & {
-  id?: number
+type GuestCdpTarget = Pick<
+  WebContents,
+  'id' | 'isDestroyed' | 'isCrashed' | 'setIgnoreMenuShortcuts'
+> & {
   debugger: Pick<WebContents['debugger'], 'sendCommand'>
 }
 
@@ -53,12 +52,9 @@ export function sendGuestCdpCommand(
   // Why inputs are checked only as sent: a press that landed counts even if the host is revoked
   // before it answers, and its answer carries nothing from the page.
   if (method.startsWith('Input.')) {
-    try {
-      assertRemoteCliPageAccess(guest.id)
-    } catch (error) {
-      return Promise.reject(error)
-    }
-    return send()
+    // Why: every Input sent here is an agent's or a remote viewer's, never this desktop user's, so
+    // the guest's own handlers must not read it as a reason to move splits, history or shortcuts.
+    return withAgentInputInjection(guest, send)
   }
   return readRemoteCliAdmittedPage(guest.id, send)
 }
