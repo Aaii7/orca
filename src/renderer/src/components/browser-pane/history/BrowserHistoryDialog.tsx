@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { FooterKey } from '@/components/worktree-jump-palette-primitives'
 import { getIntlLocale, translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
+import { requestBrowserFocus } from '../host-guest/browser-focus'
 import type { BrowserPageDocLocation } from '../../../../../shared/browser-workspace-types'
 import type { RemovedBrowserHistory } from '@/store/slices/browser/browser-slice-contract'
 import type { BrowserAddressBarSuggestion } from '../assemble-chrome/browser-address-bar-suggestions'
@@ -95,6 +96,7 @@ function clearRangeLabel(range: BrowserHistoryClearRange): string {
 }
 
 function BrowserHistoryDialogContent({
+  pageId,
   onNavigate,
   onOpenWorkspaceDoc
 }: BrowserHistoryDialogProps): React.JSX.Element {
@@ -128,6 +130,9 @@ function BrowserHistoryDialogContent({
     } else {
       onNavigate(row.url)
     }
+    // Why: like picking a row in the address bar, the page gets the keyboard; every pane kind
+    // (local, client-hosted, streamed) answers this request.
+    requestBrowserFocus({ pageId, target: 'webview' })
   }
 
   const clear = (range: BrowserHistoryClearRange): void => {
@@ -234,7 +239,11 @@ function BrowserHistoryDialogContent({
           </CommandGroup>
         ))}
       </CommandList>
-      <div className="flex items-center justify-between border-t border-border/60 px-3.5 py-2 text-2xs text-muted-foreground">
+      <div
+        className="flex items-center justify-between border-t border-border/60 px-3.5 py-2 text-2xs text-muted-foreground"
+        // Why: cmdk's root takes Enter and arrows for the highlighted row; footer buttons keep their own.
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         {cleared ? (
           <div className="flex items-center gap-2">
             <span>{translate('browser.history.cleared', 'Cleared browsing history')}</span>

@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store'
+import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
 import type { BrowserAddressBarSuggestion } from './browser-address-bar-suggestions'
 
 type RemovableRow = Pick<BrowserAddressBarSuggestion, 'normalizedUrl' | 'docLocation'>
@@ -27,7 +28,12 @@ export function useRemoveHistoryRow(): (row: RemovableRow) => void {
 /** Chrome's Shift+Delete (Shift+Fn+Delete on Mac laptops) on the highlighted row. */
 export function isRemoveRowShortcut(event: React.KeyboardEvent): boolean {
   return (
-    event.key === 'Delete' && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+    event.key === 'Delete' &&
+    event.shiftKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !isImeOwnedKeyboardEvent(event)
   )
 }
 
