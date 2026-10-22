@@ -200,6 +200,12 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
       event.yieldsToHookSince !== undefined &&
       previous?.observation?.origin === 'hook' &&
       previous.receivedAt >= event.yieldsToHookSince
+    const now = Date.now()
+    // Before the removal branch: a removal is a turn boundary in the program's report order.
+    const workingSince =
+      event.fromProgramStatus === true
+        ? this.programStatusFacets.noteState(paneKey, event.payload.state, now)
+        : undefined
     if (event.removesProgramStatusRow === true) {
       // Why: gone records end only the program's own row; they are no verdict on a hook agent.
       this.hookSilenceRechecks.cancel(paneKey)
@@ -215,17 +221,12 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
     }
     let hookOwnsAgent = false
     if (event.fromProgramStatus === true) {
-      const now = Date.now()
-      const workingSince = this.programStatusFacets.noteState(paneKey, event.payload.state, now)
       hookOwnsAgent = programStatusYieldsToHookRow(previous, event.payload, now, workingSince)
-      const yieldedTo = previous?.receivedAt
-      const yieldEndsAt =
-        yieldedTo === undefined
-          ? undefined
-          : yieldedTo + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS
+      // A yielding report always has a hook row, so `previous` is set whenever this is read.
+      const yieldedTo = previous?.receivedAt ?? 0
+      const yieldEndsAt = yieldedTo + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS
       if (
         hookOwnsAgent &&
-        yieldEndsAt !== undefined &&
         !programStatusYieldsToHookRow(previous, event.payload, yieldEndsAt, workingSince)
       ) {
         const delayMs = yieldEndsAt - now

@@ -245,6 +245,26 @@ describe('OSC 7501 status beside hooks', () => {
       expect(paneRow()).toMatchObject({ state: 'waiting', toolInput: 'Approve plan' })
     })
 
+    it('counts new work the program reports right after clearing its records', async () => {
+      server.ingestProgramStatusFacet({
+        paneKey: PANE,
+        facet: { state: 'working', observedAt: Date.now() }
+      })
+      programStatus({ state: 'working', agentType: 'opencode' })
+      await openCodeHook('SessionIdle')
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      vi.advanceTimersByTime(1_000)
+      server.ingestProgramStatusFacet({
+        paneKey: PANE,
+        facet: { state: 'blocked', kind: 'permission', observedAt: Date.now() }
+      })
+      programStatus({ state: 'done', agentType: 'opencode' }, { removesProgramStatusRow: true })
+      programStatus({ state: 'working', agentType: 'opencode' })
+      programStatus({ state: 'waiting', agentType: 'opencode', toolInput: 'Approve plan' })
+      vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
+      expect(paneRow()).toMatchObject({ state: 'waiting', toolInput: 'Approve plan' })
+    })
+
     it('surfaces an approval the program waits on mid-turn, and takes the row once hooks fall silent', async () => {
       await openCodeHook('SessionBusy')
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
