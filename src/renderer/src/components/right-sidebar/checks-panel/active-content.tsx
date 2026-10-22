@@ -260,7 +260,7 @@ export function ChecksPanelActiveContent({
         onEditComment={pr ? handleEditComment : undefined}
         onDeleteComment={pr ? handleDeleteComment : undefined}
         onSetReaction={canTargetPRComments ? handleSetReaction : undefined}
-        onOpenCommentLocation={
+        onOpenLocation={
           activeWorktree
             ? (path, line) =>
                 openAnnotationLocation({

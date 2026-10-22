@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { basename } from '@/lib/path'
 import { isBotPRComment } from '../../../../../shared/pr-comment-audience'
 import { setPRBotAuthorOverride } from '@/lib/pr-bot-author-overrides'
 import { normalizePRCommentAuthorLogin } from '../../../../../shared/pr-bot-author-overrides'
@@ -170,7 +171,7 @@ export function CommentLocationLabel({
     return null
   }
   const lineRange = formatLineRange(comment)
-  const label = `${path.split('/').pop()}${lineRange ? `:${lineRange}` : ''}`
+  const label = `${basename(path)}${lineRange ? `:${lineRange}` : ''}`
   if (!onOpenLocation || !line) {
     return (
       <span className={className} title={path}>

@@ -50,7 +50,7 @@ export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
     onEditComment,
     onDeleteComment,
     onSetReaction,
-    onOpenCommentLocation
+    onOpenLocation
   } = props
   const {
     presentation,
@@ -372,7 +372,7 @@ export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
                 onEditComment={onEditComment}
                 onDeleteComment={onDeleteComment}
                 onSetReaction={onSetReaction}
-                onOpenLocation={onOpenCommentLocation}
+                onOpenLocation={onOpenLocation}
               />
             </>
           )}

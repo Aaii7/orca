@@ -64,7 +64,7 @@ export type PRCommentsListProps = {
     content: GitHubReactionContent,
     reacted: boolean
   ) => Promise<boolean>
-  onOpenCommentLocation?: (path: string, line: number) => void
+  onOpenLocation?: (path: string, line: number) => void
 }
 
 export function useCommentsListState({
@@ -80,7 +80,7 @@ export function useCommentsListState({
   onDeleteComment,
   onSetReaction,
   onResolveSelectedCommentsWithAI,
-  onOpenCommentLocation
+  onOpenLocation
 }: PRCommentsListProps) {
   function findVerticalScrollParent(element: HTMLElement): HTMLElement | null {
     let parent = element.parentElement
@@ -252,7 +252,7 @@ export function useCommentsListState({
         onDeleteComment={onDeleteComment}
         onSetReaction={onSetReaction}
         onQueueForAgent={canQueue ? () => addGroupToSelection(groupId) : undefined}
-        onOpenLocation={onOpenCommentLocation}
+        onOpenLocation={onOpenLocation}
       />
     )
   }
