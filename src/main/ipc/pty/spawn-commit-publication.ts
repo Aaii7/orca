@@ -18,7 +18,8 @@ import {
 import { seedTerminalRestoreRecordsFromSpawnResult } from './pane/agent-session-owners'
 import { seedResumeLaunchIdentityFromSpawn } from './pane/resume-launch-identity'
 import { recordPtySpawnTelemetry } from './pane/spawn-telemetry'
-import { resolvePaneSpawnReservation } from './pane/spawn-reservation'
+import { noteRuntimePaneCreateResult, resolvePaneSpawnReservation } from './pane/spawn-reservation'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../shared/layout-owner-switch'
 import type { PtySpawnCommitInput, PtySpawnCommitState } from './spawn-commit-assembly'
 
 /** Window migration inputs: legacy and reminted spawn keys alias the pane's proven key. */
@@ -130,6 +131,10 @@ export function publishCommittedPtySpawn<Reply extends PtySpawnResult>(
     state.paneSpawnReservation,
     input.joinPayload.reservation
   )
+  // A view waiting on this create attaches to the accepted result before its waiter resumes.
+  if (ORCA_LAYOUT_OWNER_IS_MAIN) {
+    noteRuntimePaneCreateResult(state.paneSpawnReservationKey, input.joinPayload.reservation)
+  }
   return input.joinPayload.reply
 }
 
