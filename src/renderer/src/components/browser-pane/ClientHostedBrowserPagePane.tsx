@@ -332,6 +332,7 @@ export function ClientHostedBrowserPagePane({
             <BrowserAddressBar
               pageId={browserTab.id}
               value={addressBarValue}
+              committedValue={toDisplayUrl(browserTab.url)}
               onChange={setAddressBarValue}
               onSubmit={() => navigateToUrl(addressBarValue)}
               onNavigate={navigateToUrl}

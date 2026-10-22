@@ -35,13 +35,17 @@ export type BrowserAddressBarSuggestion = {
   visitCount: number
   isSearch: boolean
   faviconUrl?: string | null
+  /** Set on a visited-page row: the history entry it came from, so the row can be removed. */
+  normalizedUrl?: string
   /** Set on a previewed-document row; selecting it opens the document on a fresh grant. */
   docLocation?: BrowserPageDocLocation
   /** On row 0 when the bar completes the typed text inline to it: the full bar text. */
   inlineText?: string
 }
 
-function toWorkspaceDocSuggestion(entry: WorkspaceDocHistoryEntry): BrowserAddressBarSuggestion {
+export function toWorkspaceDocSuggestion(
+  entry: WorkspaceDocHistoryEntry
+): BrowserAddressBarSuggestion {
   return {
     url: entry.docLocation.filePath,
     title: entry.title,

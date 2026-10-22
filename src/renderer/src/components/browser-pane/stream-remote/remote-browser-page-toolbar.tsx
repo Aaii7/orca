@@ -13,6 +13,7 @@ import type { MarkupModeController } from '../annotate/useMarkupMode'
 export function RemoteBrowserPageToolbar({
   runtimeEnvironmentId,
   addressBarValue,
+  addressBarCommittedValue,
   onAddressBarChange,
   onSubmitAddressBar,
   onNavigateToUrl,
@@ -31,6 +32,7 @@ export function RemoteBrowserPageToolbar({
 }: {
   runtimeEnvironmentId: string
   addressBarValue: string
+  addressBarCommittedValue: string
   onAddressBarChange: (value: string) => void
   onSubmitAddressBar: () => void
   onNavigateToUrl: (url: string) => void
@@ -64,6 +66,7 @@ export function RemoteBrowserPageToolbar({
         <BrowserAddressBar
           pageId={addressBarEditSession.pageId}
           value={addressBarValue}
+          committedValue={addressBarCommittedValue}
           onChange={onAddressBarChange}
           onSubmit={onSubmitAddressBar}
           onNavigate={onNavigateToUrl}

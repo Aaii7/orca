@@ -54,6 +54,7 @@ export function BrowserPageToolbar({
   hardReloadShortcut,
   runReloadTrigger,
   addressBarValue,
+  addressBarCommittedValue,
   setAddressBarValue,
   submitAddressBar,
   navigateToUrl,
@@ -95,6 +96,7 @@ export function BrowserPageToolbar({
   hardReloadShortcut: string
   runReloadTrigger: (trigger: BrowserReloadTrigger) => void
   addressBarValue: string
+  addressBarCommittedValue: string
   setAddressBarValue: Dispatch<SetStateAction<string>>
   submitAddressBar: () => void
   navigateToUrl: (url: string) => void
@@ -168,6 +170,7 @@ export function BrowserPageToolbar({
         <BrowserAddressBar
           pageId={browserPageId}
           value={addressBarValue}
+          committedValue={addressBarCommittedValue}
           onChange={setAddressBarValue}
           onSubmit={submitAddressBar}
           onNavigate={navigateToUrl}

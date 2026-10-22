@@ -242,6 +242,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     replyTabClose: () => {},
     onNewTerminalTab: () => noopUnsubscribe,
     onFocusBrowserAddressBar: () => noopUnsubscribe,
+    onShowBrowserHistory: () => noopUnsubscribe,
     onFindInBrowserPage: () => noopUnsubscribe,
     onReloadBrowserPage: () => noopUnsubscribe,
     onBrowserHistoryNavigate: () => noopUnsubscribe,
