@@ -3,7 +3,7 @@ import {
   parsePluginVmRecipeArtifact,
   pluginVmRecipeArtifactId,
   type PluginMachineProvider
-} from '../../shared/plugins/plugin-vm-recipe-artifact'
+} from '../../shared/plugins/artifacts/plugin-vm-recipe-artifact'
 import {
   PLUGIN_VM_RECIPE_MAX_BYTES,
   readContainedPluginArtifactText

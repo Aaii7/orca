@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@stablyai/playwright-test'
 import { hashPluginTree } from '../../src/main/plugins/plugin-content-hash'
-import { pluginManifestSchema } from '../../src/shared/plugins/plugin-manifest'
+import { pluginManifestSchema } from '../../src/shared/plugins/manifest/plugin-manifest'
 import { pluginContributionSummary } from '../../src/shared/plugins/plugin-contribution-summary'
-import { pluginCatalogTypes } from '../../src/shared/plugins/plugin-catalog-release'
-import { PLUGIN_MANIFEST_V2_SINCE } from '../../src/shared/plugins/plugin-schema-field-docs'
+import { pluginCatalogTypes } from '../../src/shared/plugins/catalog/plugin-catalog-release'
+import { PLUGIN_MANIFEST_V2_SINCE } from '../../src/shared/plugins/manifest/plugin-schema-field-docs'
 import { createRestartSession } from './helpers/orca-restart'
 import {
   commitRepository,
@@ -168,7 +168,7 @@ test('confirms card removal and shares single/bulk update review without strandi
       const added = page.getByRole('heading', { name: /^Adds to Orca/ })
       const beforeInstall = await added.boundingBox()
       await page.getByRole('button', { name: /^Install / }).click()
-      const label = id === PLUGINS[0] ? 'Review Icons' : 'Review Terminal'
+      const label = `Use now: ${id === PLUGINS[0] ? 'Review Icons' : 'Review Terminal'}`
       const use = page.getByRole('button', { name: label, exact: true })
       await expect(use).toBeVisible()
       const afterInstall = await added.boundingBox()

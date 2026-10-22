@@ -1,0 +1,127 @@
+import type { PluginHostListEntry } from '../../../../../preload/api-types'
+import { PluginReviewSection } from './plugin-review-dialog-layout'
+import { translate } from '@/i18n/i18n'
+import { formatMachineProviderArgv } from '../../../../../shared/machine-provider-command'
+
+type VmRecipePreview = NonNullable<PluginHostListEntry['vmRecipes']>[number]
+
+function lifecycleLabel(phase: VmRecipePreview['commands'][number]['phase']): string {
+  switch (phase) {
+    case 'create':
+      return translate('auto.components.settings.PluginVmRecipeConsentPreview.create', 'Create')
+    case 'suspend':
+      return translate('auto.components.settings.PluginVmRecipeConsentPreview.suspend', 'Suspend')
+    case 'resume':
+      return translate('auto.components.settings.PluginVmRecipeConsentPreview.resume', 'Resume')
+    case 'destroy':
+      return translate('auto.components.settings.PluginVmRecipeConsentPreview.destroy', 'Destroy')
+  }
+}
+
+export function PluginVmRecipeConsentPreview({
+  recipes
+}: {
+  recipes: readonly VmRecipePreview[]
+}): React.JSX.Element | null {
+  const machineProviders = recipes.filter((recipe) => recipe.machineProviderCommand)
+  const lifecycleRecipes = recipes.filter((recipe) => !recipe.machineProviderCommand)
+  if (recipes.length === 0) {
+    return null
+  }
+  return (
+    <>
+      {lifecycleRecipes.length > 0 ? (
+        <RecipeCommandSection
+          headingId="plugin-vm-recipe-consent-heading"
+          heading={translate(
+            'auto.components.settings.PluginVmRecipeConsentPreview.heading',
+            'VM recipe commands'
+          )}
+          recipes={lifecycleRecipes}
+        />
+      ) : null}
+      {machineProviders.length > 0 ? (
+        <RecipeCommandSection
+          headingId="plugin-machine-provider-consent-heading"
+          heading={translate(
+            'auto.components.settings.PluginVmRecipeConsentPreview.machineProviderHeading',
+            'Machine provider command'
+          )}
+          recipes={machineProviders}
+        />
+      ) : null}
+    </>
+  )
+}
+
+function RecipeCommandSection({
+  headingId,
+  heading,
+  recipes
+}: {
+  headingId: string
+  heading: string
+  recipes: readonly VmRecipePreview[]
+}): React.JSX.Element {
+  return (
+    <PluginReviewSection headingId={headingId} title={heading}>
+      {recipes.map((recipe) => (
+        <div key={recipe.id} className="space-y-2 pt-1">
+          <div>
+            <p className="text-sm font-medium">{recipe.name}</p>
+            {recipe.description ? (
+              <p className="text-xs leading-5 text-muted-foreground">{recipe.description}</p>
+            ) : null}
+          </div>
+          <dl className="space-y-2">
+            {recipe.machineProviderCommand ? (
+              <div>
+                <dt className="mb-1 text-xs text-muted-foreground">
+                  {translate(
+                    'auto.components.settings.PluginVmRecipeConsentPreview.machineProvider',
+                    'Machine provider · Orca appends <verb> --json [--id <machine>]'
+                  )}
+                </dt>
+                <dd>
+                  <pre
+                    tabIndex={0}
+                    aria-label={translate(
+                      'auto.components.settings.PluginVmRecipeConsentPreview.machineProviderLabel',
+                      '{{value0}} · machine provider command',
+                      { value0: recipe.name }
+                    )}
+                    className="max-h-40 overflow-auto scrollbar-sleek whitespace-pre-wrap break-all rounded-md bg-muted px-2.5 py-2 font-mono text-xs leading-5 text-foreground"
+                  >
+                    {formatMachineProviderArgv(recipe.machineProviderCommand)}
+                  </pre>
+                </dd>
+              </div>
+            ) : null}
+            {/* The `commands` entry is the older-client copy of the same argv. */}
+            {(recipe.machineProviderCommand ? [] : recipe.commands).map(({ phase, command }) => {
+              const phaseLabel = lifecycleLabel(phase)
+              return (
+                <div key={phase}>
+                  <dt className="mb-1 text-xs text-muted-foreground">{phaseLabel}</dt>
+                  <dd>
+                    <pre
+                      tabIndex={0}
+                      aria-label={translate(
+                        'auto.components.settings.PluginVmRecipeConsentPreview.commandLabel',
+                        '{{value0}} · {{value1}} command',
+                        { value0: recipe.name, value1: phaseLabel }
+                      )}
+                      className="max-h-40 overflow-auto scrollbar-sleek whitespace-pre-wrap break-all rounded-md bg-muted px-2.5 py-2 font-mono text-xs leading-5 text-foreground"
+                    >
+                      {command}
+                    </pre>
+                  </dd>
+                </div>
+              )
+            })}
+          </dl>
+        </div>
+      ))}
+    </PluginReviewSection>
+  )
+}
