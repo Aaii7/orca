@@ -6,6 +6,7 @@ import {
   AGENT_JOURNAL_THREAD_SCOPE,
   type AgentJournalItemBody
 } from '../../../shared/agent-session-journal-types'
+import { agentSessionFailureWords } from '../../../shared/agent-session-failure-words'
 import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
 import { formatOrcaSessionAddress } from '../../../shared/orca-session-address'
 import { testOrcaSessionId } from '../../../shared/orca-session-address-test-fixture'
@@ -118,7 +119,7 @@ function mutation(
   id: string,
   body: AgentJournalItemBody,
   turnId?: string
-): JournalLifecycleMutationInput {
+): Extract<JournalLifecycleMutationInput, { kind: 'item' }> {
   return {
     kind: 'item',
     itemId: id,
@@ -178,8 +179,10 @@ it('captures every failed request before latest-only publication, despite owed w
         {
           kind: 'status',
           tone: 'warning',
-          text: 'quota C',
-          failure: { kind: 'usageLimitReached' }
+          ...agentSessionFailureWords(
+            { kind: 'usageLimitReached' },
+            { surface: 'row', agentName: 'Codex' }
+          )
         },
         'C'
       ),
@@ -194,7 +197,8 @@ it('captures every failed request before latest-only publication, despite owed w
   await tick()
   expect(r.mail().map((m) => JSON.parse(m.payload ?? '{}').error)).toEqual([
     'capacity A',
-    'quota C',
+    agentSessionFailureWords({ kind: 'usageLimitReached' }, { surface: 'row', agentName: 'Codex' })
+      .text,
     'quota D'
   ])
   expect(r.db.getDispatchContextById(r.dispatch().id)?.status).toBe('dispatched')
@@ -294,8 +298,10 @@ it('normalizes linked refused starts, reads explicitly scoped late words past a 
         clientMessageId: 'start',
         fence: 0,
         state: 'rejected',
-        reason: 'specific refusal',
-        rejection: { kind: 'providerRejected' },
+        ...agentSessionFailureWords(
+          { kind: 'providerRejected', detail: { text: 'specific refusal', audience: 'person' } },
+          { surface: 'rejection', agentName: 'Codex' }
+        ),
         answeredInTurn: { turn: identity, via: 'start' }
       }
     ],
@@ -305,7 +311,8 @@ it('normalizes linked refused starts, reads explicitly scoped late words past a 
   await tick()
   expect(r.mail()).toHaveLength(1)
   expect(r.mail()[0]?.body).toContain('Error: precise saved sentence')
-  expect(r.mail()[0]?.body).toContain('Details from the agent: specific refusal')
+  expect(r.mail()[0]?.body).toContain('Details from the agent:')
+  expect(r.mail()[0]?.body).toContain('specific refusal')
   await r.journal.appendSubmission({
     clientMessageId: 'hung',
     payloadFingerprint: 'hung',
@@ -316,8 +323,10 @@ it('normalizes linked refused starts, reads explicitly scoped late words past a 
     clientMessageId: 'hung',
     fence: 0,
     state: 'rejected',
-    reason: 'startup watchdog stopped Codex',
-    rejection: { kind: 'hostStopped' },
+    ...agentSessionFailureWords(
+      { kind: 'hostStopped' },
+      { surface: 'rejection', agentName: 'Codex' }
+    ),
     recovered: true
   })
   await tick()

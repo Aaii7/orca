@@ -3,6 +3,7 @@ import './rpc/unused-default-rpc-methods.test-fixture'
 // words, and keeps the task.
 
 import { describe, expect, it, vi } from 'vitest'
+import { agentSessionFailureWords } from '../../shared/agent-session-failure-words'
 import { formatOrcaSessionAddress } from '../../shared/orca-session-address'
 import { testOrcaSessionId } from '../../shared/orca-session-address-test-fixture'
 import { idOf } from './rpc/orchestration-session-caller-test-fixture'
@@ -111,8 +112,10 @@ describe('a chat worker whose turn fails', () => {
       clientMessageId: submission.clientMessageId,
       fence: submission.fence,
       state: 'rejected',
-      reason: 'Codex refused the initial preamble',
-      rejection: { kind: 'providerRejected' }
+      ...agentSessionFailureWords(
+        { kind: 'providerRejected' },
+        { surface: 'rejection', agentName: 'Codex' }
+      )
     })
     await rejected
     await new Promise<void>((resolve) => setImmediate(resolve))
