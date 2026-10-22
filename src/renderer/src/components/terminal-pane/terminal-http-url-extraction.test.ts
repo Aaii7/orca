@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractTerminalHttpLinks } from './terminal-http-url-extraction'
+import { extractTerminalHttpLinks, TERMINAL_HTTP_URL_REGEX } from './terminal-http-url-extraction'
 
 const urlsIn = (line: string): string[] => extractTerminalHttpLinks(line).map((link) => link.url)
 
@@ -40,5 +40,19 @@ describe('extractTerminalHttpLinks', () => {
 
   it('still trims ascii trailing punctuation', () => {
     expect(urlsIn('see https://example.com/a.')).toEqual(['https://example.com/a'])
+  })
+
+  it('gives the web-links hover the same url the extractor opens', () => {
+    const webLinksUrlsIn = (line: string): string[] =>
+      [...line.matchAll(new RegExp(TERMINAL_HTTP_URL_REGEX, 'gu'))].map((match) => match[0])
+    for (const line of [
+      '投稿はお願いします（https://github.com/stablyai/orca/pull/1078）。',
+      '投稿はお願いします (https://github.com/stablyai/orca/pull/1078)。',
+      '詳細は「https://example.com/docs」、https://example.com/b、次へ',
+      'https://example.com/文档/路径。',
+      'see https://example.com/a_b-c?d=1&e=2#f.'
+    ]) {
+      expect(webLinksUrlsIn(line).map((url) => new URL(url).toString())).toEqual(urlsIn(line))
+    }
   })
 })
