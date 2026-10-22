@@ -1,8 +1,5 @@
 import { TERMINAL_HTTP_URL_MAX_LENGTH } from './terminal-http-link-limits'
-import {
-  isProseUrlTerminator,
-  PROSE_URL_TERMINATOR_SOURCE
-} from '../../../../shared/prose-url-boundary'
+import { isProseUrlTerminator, PROSE_HTTP_URL_SOURCE } from '../../../../shared/prose-url-boundary'
 
 type ParsedTerminalHttpLink = {
   url: string
@@ -94,7 +91,7 @@ function trimHttpUrlTrailingPunctuation(
 
 function isHttpUrlBodyTerminator(code: number): boolean {
   return (
-    isProseUrlTerminator(String.fromCharCode(code)) ||
+    (code > 0x7f && isProseUrlTerminator(String.fromCharCode(code))) ||
     isAsciiWhitespace(code) ||
     code === 0x22 ||
     code === 0x27 ||
@@ -139,14 +136,7 @@ function isHttpUrlTrailingPunctuation(code: number): boolean {
   )
 }
 
-const NOT_PROSE_URL_TERMINATOR = `(?!${PROSE_URL_TERMINATOR_SOURCE})`
-
-/** xterm's default web-links regex, ended by the same prose terminator as the extractor. */
-export const TERMINAL_HTTP_URL_REGEX = new RegExp(
-  String.raw`(https?|HTTPS?):[/]{2}(?:${NOT_PROSE_URL_TERMINATOR}[^\s"'!*(){}|\\^<>\x60])*` +
-    String.raw`${NOT_PROSE_URL_TERMINATOR}[^\s"':,.!?{}|\\^~\[\]\x60()<>]`,
-  'u'
-)
+export const TERMINAL_HTTP_URL_REGEX = new RegExp(PROSE_HTTP_URL_SOURCE, 'iu')
 
 function isAsciiWhitespace(code: number): boolean {
   return code === 9 || code === 10 || code === 11 || code === 12 || code === 13 || code === 32
