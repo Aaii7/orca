@@ -17,7 +17,7 @@ import {
   findWorkspace
 } from '../browser-page-records'
 import { getBrowserSessionProfileHostId } from './browser-host-state'
-import { resolveNewBrowserTabProfileId } from './browser-new-tab-profile'
+import { resolveNewBrowserTabProfile } from './browser-new-tab-profile'
 import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { admitBrowserPageMount } from '@/components/browser-pane/host-guest/browser-page-mount-admission'
 import {
@@ -69,10 +69,10 @@ export function createBrowserTabActions(
         admitBrowserPageMount(page.id)
       }
       // Why: with no explicit profile, Settings decides, so the profile scope applies to every way a tab opens.
-      const sessionProfileId =
+      const { sessionProfileId, sessionPartition } =
         options?.sessionProfileId !== undefined
-          ? options.sessionProfileId
-          : resolveNewBrowserTabProfileId(
+          ? options
+          : resolveNewBrowserTabProfile(
               get(),
               worktreeId,
               getBrowserSessionProfileHostId(
@@ -87,7 +87,7 @@ export function createBrowserTabActions(
         page,
         [page.id],
         sessionProfileId,
-        options?.sessionPartition
+        sessionPartition
       )
 
       const drawHere = (): void => {

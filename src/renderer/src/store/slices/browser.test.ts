@@ -313,6 +313,8 @@ describe('createBrowserSlice annotations', () => {
       { kind: 'repo', id: 'repo-b' }
     ])
     expect(store.getState().managedBrowserProfileStatusById[placeholderId]).toBe('pending')
+    // A placeholder that outlives this run must load nowhere, never on the shared Default jar.
+    expect(first.sessionPartition).toBe(`persist:orca-browser-unminted-${placeholderId}`)
     store.getState().closeBrowserTab(sibling.id)
     await main.settle()
 
@@ -334,6 +336,7 @@ describe('createBrowserSlice annotations', () => {
     const repoATabs = ['repo-a::/a/one', 'repo-a::/a/two'].flatMap(
       (worktreeId) => store.getState().browserTabsByWorktree[worktreeId] ?? []
     )
+    expect(repoATabs.map((tab) => tab.sessionPartition ?? null)).toEqual([null, null])
     expect(repoATabs.map((tab) => tab.sessionProfileId)).toEqual([
       'minted-by-main',
       'minted-by-main'

@@ -7,6 +7,15 @@ import {
 } from '../../../../../shared/browser-profile-scope'
 import { getBrowserProfilesForHost, profileListByHostUpdate } from './browser-host-state'
 
+// Why a partition main never admits: a placeholder that outlives this run (quit, or a failed
+// creation) must load nowhere rather than fall back to the shared Default jar.
+const placeholderProfile = (
+  sessionProfileId: string
+): { sessionProfileId: string; sessionPartition: string } => ({
+  sessionProfileId,
+  sessionPartition: `persist:orca-browser-unminted-${sessionProfileId}`
+})
+
 export function createBrowserManagedProfileActions(
   set: BrowserSliceSet,
   get: BrowserSliceGet
@@ -36,7 +45,10 @@ export function createBrowserManagedProfileActions(
           worktreeId,
           closed.map((entry) =>
             entry.workspace.sessionProfileId === fromId
-              ? { ...entry, workspace: { ...entry.workspace, sessionProfileId: toId } }
+              ? {
+                  ...entry,
+                  workspace: { ...entry.workspace, sessionProfileId: toId, sessionPartition: null }
+                }
               : entry
           )
         ])
@@ -49,7 +61,7 @@ export function createBrowserManagedProfileActions(
       const key = ownerKey(owner)
       const pendingId = placeholderIdByOwner.get(key)
       if (pendingId) {
-        return pendingId
+        return placeholderProfile(pendingId)
       }
       const listedId = findLocalProfile(owner)?.id
       // Why a placeholder: main mints the id, and until it answers this tab's pages must not mount.
@@ -90,7 +102,7 @@ export function createBrowserManagedProfileActions(
         },
         () => settle('failed')
       )
-      return requestedId
+      return listedId ? { sessionProfileId: listedId } : placeholderProfile(requestedId)
     },
 
     deleteManagedBrowserSessionProfile: async (owner) => {
