@@ -14,6 +14,7 @@ import { createTrackedJournalOpener } from '../../native-chat/agent-session-jour
 import type { AgentSessionJournal } from '../../native-chat/agent-session-journal/journal-store'
 import type { JournalLifecycleMutationInput } from '../../native-chat/agent-session-journal/journal-row-builders'
 import { StructuredAgentSessionConversations } from '../../native-chat/agent-session-wire/structured-agent-session-conversations'
+import { recordStructuredAgentSessionStartFailure } from '../../native-chat/agent-session-wire/structured-agent-session-start-failure-row'
 import { StructuredAgentSessionRequestFailures } from '../../native-chat/agent-session-wire/structured-agent-session-request-failures'
 import type {
   StructuredAgentSessionHostSession,
@@ -218,6 +219,66 @@ it('captures every failed request before latest-only publication, despite owed w
   })
   expect(r.journal.submission('after')?.dispatchState).toBe('pending')
 })
+
+it('keeps each request’s own saved error when another start fails before the detached read', async () => {
+  const r = await rig()
+  await r.journal.appendSubmission({
+    clientMessageId: 'B',
+    payloadFingerprint: 'B',
+    body: hostTestMessage('B'),
+    fence: 0,
+    handoverRecorded: true
+  })
+  await batch(r.journal, 'A', [turn('A', 'failure'), words('A', 'capacity from A')])
+  const refused = agentSessionFailureWords(
+    { kind: 'cliMissing' },
+    { surface: 'rejection', agentName: 'Codex' }
+  )
+  await recordStructuredAgentSessionStartFailure(
+    { journal: r.journal, fence: 0 },
+    { startKey: 'B-start', ...refused }
+  )
+  await tick()
+  expect(r.mail().map((message) => JSON.parse(message.payload ?? '{}'))).toMatchObject([
+    { requestId: 'A', error: 'capacity from A' },
+    { requestId: 'orca:B', error: refused.reason }
+  ])
+  expect(r.db.getDispatchContextById(r.dispatch().id)?.status).toBe('dispatched')
+})
+
+it('delivers a captured live failure when the same journal clears context before the detached read', async () => {
+  const r = await rig()
+  await batch(r.journal, 'A', [turn('A', 'failure'), words('A', 'failure before clear')])
+  await r.journal.context.clear(
+    { operationId: 'clear-after-A', afterFence: 0, clearedAt: 1 },
+    { write: () => {}, committed: () => {} },
+    'clear-operation'
+  )
+  await tick()
+  expect(r.mail().map((message) => JSON.parse(message.payload ?? '{}'))).toMatchObject([
+    { requestId: 'A', error: 'failure before clear' }
+  ])
+})
+
+it.each(['history', 'close', 'replacement', 'epoch'] as const)(
+  'invalidates a captured read on %s before the detached read',
+  async (change) => {
+    const r = await rig()
+    const replacement = change === 'replacement' ? (await rig()).session : r.session
+    await batch(r.journal, 'A', [turn('A', 'failure'), words('A', 'obsolete failure')])
+    if (change === 'history') {
+      r.observer.observe(SESSION, r.journal)
+    } else if (change === 'close') {
+      r.sessions.delete(SESSION)
+    } else if (change === 'replacement') {
+      r.sessions.set(SESSION, replacement)
+    } else {
+      await r.journal.replaceEpochItems('handle_forked', 0, [])
+    }
+    await tick()
+    expect(r.mail()).toHaveLength(0)
+  }
+)
 
 it('consumes disabled/unassigned failures and baselines adoption, epoch replacement and changed assignments', async () => {
   const r = await rig()

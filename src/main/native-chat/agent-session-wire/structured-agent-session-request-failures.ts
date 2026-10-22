@@ -79,22 +79,23 @@ export class StructuredAgentSessionRequestFailures {
         }
       }
     }
-    const historical =
+    const replaced =
       !rows ||
       !baseline ||
       baseline.journal !== journal ||
       baseline.epoch !== cursor.epoch ||
-      cursor.sequence < baseline.sequence ||
-      cleared
+      cursor.sequence < baseline.sequence
+    const historical = replaced || cleared
     if (historical) {
-      baseline = {
+      // Context clear retires marks, while captured reads still belong to the held journal.
+      baseline = Object.assign(replaced ? {} : (baseline ?? {}), {
         ...cursor,
         sessionId,
         journal,
         floor: journal.context.floor()?.sequence ?? 0,
         marks: new Map(),
         ended: this.deps.sessions.get(sessionId)?.lastEndedChild
-      }
+      })
       this.baselines.set(sessionId, baseline)
       journal.visitItems((id) => items.add(id))
       for (const submission of journal.submissions()) {

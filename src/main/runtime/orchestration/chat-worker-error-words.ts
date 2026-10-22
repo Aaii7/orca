@@ -72,8 +72,8 @@ export function chatRequestError(
       (item.body.failure
         ? item.body.failure.kind !== 'providerRetrying'
         : item.body.tone === 'error') &&
-      (item.turnScope?.kind === 'turn'
-        ? item.turnScope.turnItemId === turnItemId
+      (item.turnScope
+        ? item.turnScope.kind === 'turn' && item.turnScope.turnItemId === turnItemId
         : index > start && (next === -1 || index < next))
   )
   const rejection = snapshot.submissions.findLast(
