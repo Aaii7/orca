@@ -4,6 +4,7 @@ import { getShortcutPlatform } from '@/hooks/useShortcutLabel'
 import { keybindingMatchesAction } from '../../../../../shared/keybindings'
 import {
   consumeBrowserFocusRequest,
+  queueBrowserFocusRequest,
   ORCA_BROWSER_FOCUS_REQUEST_EVENT,
   type BrowserFocusRequestDetail
 } from '../host-guest/browser-focus'
@@ -15,6 +16,8 @@ import { addAppKeyListener, removeAppKeyListener } from '@/lib/app-keyboard-rout
 
 /** Frames an address-bar grab keeps retrying before it lets the guest have focus back. */
 const ADDRESS_BAR_FOCUS_FRAMES = 6
+/** Frames a queued page-focus request waits for a new tab's guest to attach. */
+const GUEST_ATTACH_WAIT_FRAMES = 120
 
 /**
  * Who owns focus in a browser pane's chrome. Every pane — local, client-hosted and streamed —
@@ -202,14 +205,30 @@ export function useBrowserPageChromeFocus({
     // frames dragging focus back off the page this request just aimed at.
     cancelAddressBarFocusGrab()
     let cancelled = false
+    let settled = false
     let frameId = 0
     let attempts = 0
+    let waitedFrames = 0
+    const focusAtRequest = document.activeElement
     const runFocus = (): void => {
       if (cancelled) {
         return
       }
+      // Why: a link's new tab attaches its guest frames after the pane mounts, so the retry
+      // budget starts once there is a guest; focus the user moves meanwhile stays where they put it.
+      if (!guestFocus.isAttached() && waitedFrames < GUEST_ATTACH_WAIT_FRAMES) {
+        const active = document.activeElement
+        if (active !== focusAtRequest && active !== document.body) {
+          settled = true
+          return
+        }
+        waitedFrames += 1
+        frameId = window.requestAnimationFrame(runFocus)
+        return
+      }
       attempts += 1
-      if (!focusGuestNow() && attempts < ADDRESS_BAR_FOCUS_FRAMES) {
+      settled = focusGuestNow()
+      if (!settled && attempts < ADDRESS_BAR_FOCUS_FRAMES) {
         frameId = window.requestAnimationFrame(runFocus)
       }
     }
@@ -218,8 +237,19 @@ export function useBrowserPageChromeFocus({
     return () => {
       cancelled = true
       window.cancelAnimationFrame(frameId)
+      // Why: a re-run (StrictMode, a dependency change) mid-wait must still find the request.
+      if (!settled && waitedFrames < GUEST_ATTACH_WAIT_FRAMES) {
+        queueBrowserFocusRequest({ pageId: browserTabId, target: 'webview' })
+      }
     }
-  }, [browserTabId, cancelAddressBarFocusGrab, focusGuestNow, isActive, startAddressBarFocusGrab])
+  }, [
+    browserTabId,
+    cancelAddressBarFocusGrab,
+    focusGuestNow,
+    guestFocus,
+    isActive,
+    startAddressBarFocusGrab
+  ])
 
   useEffect(() => {
     if (!isActive) {

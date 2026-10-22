@@ -11822,6 +11822,10 @@
           "descriptionSystem": "リンクは Orca で開きます。{{chord}}+クリックすると、システムのブラウザで開きます。",
           "descriptionOrca": "リンクはシステムのブラウザで開きます。有効にすると、{{chord}}+クリックで Orca 内蔵のブラウザで開きます。"
         },
+        "BrowserLinkRoutingBackgroundSetting": {
+          "title": "リンクをバックグラウンドで開く",
+          "description": "ターミナル、チャット、Markdown のリンクを、クリックした場所からフォーカスを移さずにブラウザーで開きます。"
+        },
         "PluginConsentDialog": {
           "workerTrust": "バックグラウンドワーカー — 自身のプロセスを実行",
           "instructionalTrust": "インストラクショナルコンテンツ — ユーザーまたは Agent の権限で後から実行",

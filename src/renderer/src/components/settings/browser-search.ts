@@ -5,6 +5,7 @@ import { getBrowserUserAgentSearchEntry } from './browser-user-agent-search'
 import { getBrowserSitePermissionsSearchEntry } from './browser-site-permissions-search'
 import {
   getBrowserLinkRoutingDescription,
+  getLinkRoutingBackgroundSearchEntry,
   getLinkRoutingModifierDescription,
   getLinkRoutingModifierTitle
 } from './browser-link-routing-copy'
@@ -298,6 +299,7 @@ export function getBrowserPaneSearchEntries(
       ]
     },
     getBrowserUserAgentSearchEntry(),
-    getBrowserSitePermissionsSearchEntry()
+    getBrowserSitePermissionsSearchEntry(),
+    getLinkRoutingBackgroundSearchEntry()
   ]
 }

@@ -1,4 +1,5 @@
 import { translate } from '@/i18n/i18n'
+import type { SettingsSearchEntry } from './settings-search'
 
 export function getBrowserLinkRoutingShortcutLabel(platform: { isMac: boolean }): string {
   return platform.isMac ? '⇧⌘-click' : 'Shift+Ctrl+click'
@@ -64,4 +65,28 @@ export function getLinkRoutingModifierDescription({
         "Links open in your system browser. When enabled, {{chord}}+click opens one in Orca's built-in browser instead.",
         { chord }
       )
+}
+
+export function getLinkRoutingBackgroundTitle(): string {
+  return translate(
+    'auto.components.settings.BrowserLinkRoutingBackgroundSetting.title',
+    'Open links in the background'
+  )
+}
+
+export function getLinkRoutingBackgroundDescription(): string {
+  return translate(
+    'auto.components.settings.BrowserLinkRoutingBackgroundSetting.description',
+    'Links from the terminal, chat, and markdown join the browser without taking focus from where you clicked.'
+  )
+}
+
+export const LINK_ROUTING_BACKGROUND_KEYWORDS = ['browser', 'links', 'background', 'focus', 'tab']
+
+export function getLinkRoutingBackgroundSearchEntry(): SettingsSearchEntry {
+  return {
+    title: getLinkRoutingBackgroundTitle(),
+    description: getLinkRoutingBackgroundDescription(),
+    keywords: LINK_ROUTING_BACKGROUND_KEYWORDS
+  }
 }

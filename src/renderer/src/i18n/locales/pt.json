@@ -8139,6 +8139,10 @@
           "descriptionSystem": "Os links abrem no Orca, então {{chord}}+clique envia um para o seu navegador do sistema.",
           "descriptionOrca": "Os links abrem no seu navegador do sistema. Quando ativado, {{chord}}+clique abre um no navegador integrado do Orca."
         },
+        "BrowserLinkRoutingBackgroundSetting": {
+          "title": "Abrir links em segundo plano",
+          "description": "Links do terminal, do chat e do markdown abrem no navegador sem tirar o foco de onde você clicou."
+        },
         "PluginKeybindingConsentPreview": {
           "heading": "Atalhos de teclado",
           "worktree": "Executa somente enquanto um espaço de trabalho está ativo.",

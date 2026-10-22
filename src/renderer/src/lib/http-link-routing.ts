@@ -9,6 +9,13 @@ import type { WorkspacePort, WorkspacePortScanResult } from '../../../shared/wor
 import { toast } from 'sonner'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { reselectWorkspaceKeepingHost } from './active-workspace-host'
+import {
+  isHttpLinkBackgroundOpen,
+  openLocalHttpLinkTab,
+  prepareRemoteHttpLinkTab,
+  type HttpLinkBrowserRequestFields,
+  type HttpLinkBrowserTabState
+} from './http-link-browser-placement'
 
 export type OpenHttpLinkOptions = {
   worktreeId?: string | null
@@ -29,12 +36,13 @@ export type HttpLinkSourceOwner =
   | { kind: 'ssh'; connectionId: string }
   | { kind: 'unknown' }
 
-type StoreAccessor = () => {
+type StoreAccessor = () => HttpLinkBrowserTabState & {
   settings?: Partial<
     Pick<
       GlobalSettings,
       | 'openLinksInApp'
       | 'openLinksInAppModifierInverts'
+      | 'openLinksInAppInBackground'
       | 'activeRuntimeEnvironmentId'
       | 'localhostWorktreeLabelsEnabled'
     >
@@ -42,7 +50,6 @@ type StoreAccessor = () => {
   setActiveWorktree: (worktreeId: string, executionHostId?: ExecutionHostId) => void
   activeWorktreeId?: string | null
   activeWorkspaceExecutionHostId?: ExecutionHostId | null
-  createBrowserTab: (worktreeId: string, url: string, opts: { activate: boolean }) => unknown
   repos?: readonly LocalhostLinkRepo[]
   projects?: readonly LocalhostLinkProject[]
   worktreesByRepo?: Record<string, LocalhostLinkWorktree[]>
@@ -51,7 +58,7 @@ type StoreAccessor = () => {
   workspacePortScansByKey?: Record<string, WorkspacePortScanResult>
 }
 
-type WorkspaceHttpLinkBrowserRequest = {
+type WorkspaceHttpLinkBrowserRequest = HttpLinkBrowserRequestFields & {
   workspaceId: string
   url: string
   intent: { kind: 'url' }
@@ -155,11 +162,12 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
       effectiveSourceOwner?.kind === 'ssh' ||
       (!effectiveSourceOwner && remoteRuntimeActive))
   ) {
-    if (workspaceHttpLinkBrowserOpener) {
+    if (workspaceHttpLinkBrowserOpener && state) {
       void workspaceHttpLinkBrowserOpener({
         workspaceId: worktreeId,
         url,
         intent: { kind: 'url' },
+        ...prepareRemoteHttpLinkTab(state, worktreeId),
         ...(effectiveSourceOwner?.kind === 'runtime'
           ? { expectedRuntimeEnvironmentId: effectiveSourceOwner.runtimeEnvironmentId }
           : effectiveSourceOwner?.kind === 'ssh'
@@ -181,18 +189,18 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
     // history entry — the user isn't changing worktrees, they're opening a tab
     // in the one they're already in. activateAndRevealWorktree is reserved for
     // file-link jumps that genuinely switch worktrees.
-    if (!isFloatingWorkspaceId(worktreeId)) {
+    if (!isHttpLinkBackgroundOpen(state) && !isFloatingWorkspaceId(worktreeId)) {
       // Why: the floating workspace uses a synthetic worktree id. Promoting it
       // to the global activeWorktreeId deselects the real repo workspace.
       reselectWorkspaceKeepingHost(state, worktreeId)
     }
     const localhostRoute = localhostLabelRouteForHttpLink(url, state, sourceOwner)
     if (!localhostRoute) {
-      state.createBrowserTab(worktreeId, url, { activate: true })
+      openLocalHttpLinkTab(state, worktreeId, url)
       return
     }
     void openLabeledLocalhostLink(url, localhostRoute, (labeledUrl) => {
-      state.createBrowserTab(worktreeId, labeledUrl, { activate: true })
+      openLocalHttpLinkTab(storeAccessor?.() ?? state, worktreeId, labeledUrl)
     })
     return
   }

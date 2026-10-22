@@ -11822,6 +11822,10 @@
           "descriptionSystem": "링크가 Orca에서 열리므로, {{chord}}+클릭 시 시스템 기본 브라우저에서 대신 열립니다.",
           "descriptionOrca": "링크가 시스템 기본 브라우저에서 열립니다. 활성화하면 {{chord}}+클릭 시 Orca 내장 브라우저에서 대신 열립니다."
         },
+        "BrowserLinkRoutingBackgroundSetting": {
+          "title": "링크를 백그라운드에서 열기",
+          "description": "터미널, 채팅, 마크다운의 링크를 클릭한 위치에서 포커스를 옮기지 않고 브라우저에서 엽니다."
+        },
         "PluginConsentDialog": {
           "workerTrust": "백그라운드 워커 — 자체 프로세스 실행",
           "instructionalTrust": "지시 내용 — 사용자 또는 에이전트 권한으로 나중에 실행",

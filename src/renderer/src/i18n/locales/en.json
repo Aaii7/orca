@@ -12128,6 +12128,10 @@
           "descriptionSystem": "Links open in Orca, so {{chord}}+click sends one to your system browser instead.",
           "descriptionOrca": "Links open in your system browser. When enabled, {{chord}}+click opens one in Orca's built-in browser instead."
         },
+        "BrowserLinkRoutingBackgroundSetting": {
+          "title": "Open links in the background",
+          "description": "Links from the terminal, chat, and markdown join the browser without taking focus from where you clicked."
+        },
         "BrowserTerminalLinkActionsSetting": {
           "title": "Terminal URL clicks",
           "descriptionV2": "Control clicks on detected URLs printed in terminal panes and chat transcripts.",

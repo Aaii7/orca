@@ -11817,6 +11817,10 @@
           "descriptionSystem": "Links open in Orca, so {{chord}}+click sends one to your system browser instead.",
           "descriptionOrca": "Links open in your system browser. When enabled, {{chord}}+click opens one in Orca's built-in browser instead."
         },
+        "BrowserLinkRoutingBackgroundSetting": {
+          "title": "Abrir enlaces en segundo plano",
+          "description": "Los enlaces de la terminal, el chat y markdown se abren en el navegador sin quitar el foco de donde hiciste clic."
+        },
         "PluginConsentDialog": {
           "workerTrust": "Proceso en segundo plano — se ejecuta en su propio proceso",
           "instructionalTrust": "Contenido instructivo — se ejecuta más tarde con la autoridad del usuario o del agente",

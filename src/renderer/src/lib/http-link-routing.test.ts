@@ -18,6 +18,7 @@ const openUrlMock = vi.fn()
 const registerLocalhostLabelMock = vi.fn()
 const setActiveWorktreeMock = vi.fn()
 const createBrowserTabMock = vi.fn()
+const setActiveViewMock = vi.fn()
 const openRuntimeBrowserTabMock = vi.fn(() => Promise.resolve())
 
 function noActiveWorkspace(): {
@@ -27,17 +28,22 @@ function noActiveWorkspace(): {
   return { activeWorktreeId: null, activeWorkspaceExecutionHostId: null }
 }
 
+type LinkTestSettings = {
+  openLinksInApp?: boolean
+  openLinksInAppModifierInverts?: boolean
+  openLinksInAppInBackground?: boolean
+  openLinksInAppPreferencePrompted?: boolean
+  activeRuntimeEnvironmentId?: string | null
+  localhostWorktreeLabelsEnabled?: boolean
+}
+const noSettings = (): LinkTestSettings | undefined => undefined
+const terminalView = (): 'terminal' | 'activity' => 'terminal'
+
 const storeState = {
-  settings: undefined as
-    | {
-        openLinksInApp?: boolean
-        openLinksInAppModifierInverts?: boolean
-        openLinksInAppPreferencePrompted?: boolean
-        activeRuntimeEnvironmentId?: string | null
-        localhostWorktreeLabelsEnabled?: boolean
-      }
-    | undefined,
+  settings: noSettings(),
   setActiveWorktree: setActiveWorktreeMock,
+  activeView: terminalView(),
+  setActiveView: setActiveViewMock,
   ...noActiveWorkspace(),
   createBrowserTab: createBrowserTabMock,
   repos: [] as { id: string; displayName: string; repoIcon?: null; badgeColor?: string }[],
@@ -56,6 +62,7 @@ const storeState = {
 beforeEach(() => {
   vi.clearAllMocks()
   storeState.settings = undefined
+  storeState.activeView = 'terminal'
   Object.assign(storeState, noActiveWorkspace())
   storeState.workspacePortScansByKey = {}
   registerHttpLinkStoreAccessor(() => storeState)
@@ -98,6 +105,28 @@ describe('openHttpLink', () => {
       activate: true
     })
     expect(openUrlMock).not.toHaveBeenCalled()
+  })
+
+  // Why: #31530 — queued links must not pull focus or the selected workspace away from the source.
+  it('opens in the background without selecting the tab or its workspace', () => {
+    storeState.settings = { openLinksInApp: true, openLinksInAppInBackground: true }
+
+    openHttpLink('https://example.com/', { worktreeId: 'wt-1' })
+
+    expect(setActiveWorktreeMock).not.toHaveBeenCalled()
+    expect(createBrowserTabMock).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
+      activate: false
+    })
+  })
+
+  // Why: #7813 — a link clicked in Agents View landed in a tab layout that was not on screen.
+  it('brings the workspace tabs on screen for a link clicked in Agents View', () => {
+    storeState.settings = { openLinksInApp: true }
+    storeState.activeView = 'activity'
+
+    openHttpLink('https://example.com/', { worktreeId: 'wt-1' })
+
+    expect(setActiveViewMock).toHaveBeenCalledWith('terminal')
   })
 
   it('defaults to the system browser when settings have not hydrated', () => {

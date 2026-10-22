@@ -8,6 +8,7 @@ import {
   releaseBrowserAutomationVisibility
 } from '@/components/browser-pane/host-guest/browser-automation-visibility'
 import { acquireBrowserAutomationBootstrapLease } from './browser-automation-bootstrap-lease'
+import { requestBrowserFocus } from '@/components/browser-pane/host-guest/browser-focus'
 import {
   beginAgentInputFocusGuard,
   clearAgentInputFocusGuards,
@@ -151,7 +152,7 @@ export function registerBrowserStateIpcBridge(
         browserPageId,
         sourcePage.worktreeId
       )
-      store.createBrowserTab(sourcePage.worktreeId, url, {
+      const created = store.createBrowserTab(sourcePage.worktreeId, url, {
         title: url,
         activate: activate ?? true,
         ...(sourceUnifiedTab ? { afterTabId: sourceUnifiedTab.id } : {}),
@@ -165,6 +166,10 @@ export function registerBrowserStateIpcBridge(
             }
           : {})
       })
+      // Why: keyboard focus follows a foreground tab, so Cmd/Ctrl+W closes it instead of its opener.
+      if (activate !== false && created.activePageId) {
+        requestBrowserFocus({ pageId: created.activePageId, target: 'webview' })
+      }
     })
   )
 }
