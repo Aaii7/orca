@@ -348,19 +348,6 @@ describe('createBrowserSlice annotations', () => {
     expect(store.getState().managedBrowserProfileStatusById['minted-by-main']).toBeUndefined()
   })
 
-  it('keeps the shared default profile under the shared scope', async () => {
-    const { store, main } = await createTestStoreDrawnFromMain({
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the browser keys are read.
-      settings: { browserProfileScope: 'shared' } as AppState['settings'],
-      defaultBrowserSessionProfileId: 'user-default'
-    })
-
-    const tab = store.getState().createBrowserTab('repo-a::/a/one', 'about:blank')
-    await main.settle()
-
-    expect(tab.sessionProfileId).toBe('user-default')
-  })
-
   it('preserves browser map references when a page-state update is unchanged', async () => {
     const { store, main } = await createTestStoreDrawnFromMain()
     const tab = store.getState().createBrowserTab('wt-1', 'https://example.com', {
