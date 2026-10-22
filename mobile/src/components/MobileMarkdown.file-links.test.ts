@@ -143,9 +143,9 @@ describe('MobileMarkdown file links', () => {
     ],
     ['詳細は「www.example.com/docs」、次へ', 'www.example.com/docs', 'http://www.example.com/docs'],
     [
-      'https://ja.wikipedia.org/wiki/日本語。',
-      'https://ja.wikipedia.org/wiki/日本語',
-      'https://ja.wikipedia.org/wiki/%E6%97%A5%E6%9C%AC%E8%AA%9E'
+      'https://ja.wikipedia.org/wiki/ジョン・スミス。',
+      'https://ja.wikipedia.org/wiki/ジョン・スミス',
+      'https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%A7%E3%83%B3%E3%83%BB%E3%82%B9%E3%83%9F%E3%82%B9'
     ]
   ])('ends the autolink in %s at CJK punctuation', (content, linkText, url) => {
     pressByText(render(content), linkText)

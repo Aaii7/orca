@@ -75,8 +75,8 @@ describe('CommentMarkdown', () => {
       'https://example.com/a',
       'https://example.com/b'
     ])
-    expect(hrefsIn('https://ja.wikipedia.org/wiki/日本語。')).toEqual([
-      'https://ja.wikipedia.org/wiki/%E6%97%A5%E6%9C%AC%E8%AA%9E'
+    expect(hrefsIn('https://ja.wikipedia.org/wiki/ジョン・スミス。')).toEqual([
+      'https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%A7%E3%83%B3%E3%83%BB%E3%82%B9%E3%83%9F%E3%82%B9'
     ])
     expect(hrefsIn('https://en.wikipedia.org/wiki/Foo_(bar)')).toEqual([
       'https://en.wikipedia.org/wiki/Foo_(bar)'

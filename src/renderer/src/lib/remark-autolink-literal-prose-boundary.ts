@@ -1,5 +1,5 @@
 import type { Processor } from 'unified'
-import { findProseUrlTerminator } from '../../../shared/prose-url-boundary'
+import { splitAtProseUrlTerminators } from '../../../shared/prose-url-boundary'
 
 type MarkdownNode = {
   type: string
@@ -28,12 +28,11 @@ function removePositions(node: MarkdownNode): void {
 }
 
 // Why: GFM ends a bare url only at whitespace and trims only ASCII punctuation, so the url
-// in `(https://…/1078)。` kept `)。`; cutting at prose punctuation and re-parsing each side
-// lets GFM's own trim and balanced-paren rule run on just the url.
+// in `(https://…/1078)。` kept `)。`; parsing each piece between prose punctuation lets GFM's
+// own trim and balanced-paren rule run on just the url.
 export function remarkAutolinkLiteralProseBoundary(this: Processor): (tree: MarkdownNode) => void {
   const parseInline = (text: string): MarkdownNode[] => {
     const tree: MarkdownNode = this.parse(text)
-    splitAutolinkLiterals(tree)
     const [paragraph] = tree.children ?? []
     if (paragraph?.type !== 'paragraph' || !paragraph.children) {
       return [{ type: 'text', value: text }]
@@ -48,12 +47,17 @@ export function remarkAutolinkLiteralProseBoundary(this: Processor): (tree: Mark
     }
     node.children = node.children.flatMap((child) => {
       const literal = autolinkLiteralText(child)
-      const cut = literal === null ? -1 : findProseUrlTerminator(literal)
-      if (literal === null || cut === -1) {
+      const pieces = literal === null ? [] : splitAtProseUrlTerminators(literal)
+      if (pieces.length < 2) {
         splitAutolinkLiterals(child)
         return [child]
       }
-      return [...parseInline(literal.slice(0, cut)), ...parseInline(literal.slice(cut))]
+      return pieces.flatMap((piece, index) => {
+        if (index % 2 === 1) {
+          return [{ type: 'text', value: piece }]
+        }
+        return piece ? parseInline(piece) : []
+      })
     })
   }
 

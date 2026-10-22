@@ -50,6 +50,7 @@ describe('extractTerminalHttpLinks', () => {
       '投稿はお願いします (https://github.com/stablyai/orca/pull/1078)。',
       '詳細は「https://example.com/docs」、https://example.com/b、次へ',
       'https://example.com/文档/路径。',
+      'https://ja.wikipedia.org/wiki/ジョン・スミス、https://en.wikipedia.org/wiki/Michelson–Morley_experiment。',
       'see https://example.com/a_b-c?d=1&e=2#f.'
     ]) {
       expect(webLinksUrlsIn(line).map((url) => new URL(url).toString())).toEqual(urlsIn(line))
