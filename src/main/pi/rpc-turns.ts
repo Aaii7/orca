@@ -113,22 +113,24 @@ export class PiRpcTurns {
           this.delivery.reply(frame)
         }
         return
-      case 'agent_start':
+      case 'agent_start': {
         // Extensions can start a run on an idle session (a subagent waking its parent).
+        const idle = !this.active
         this.touch()
         this.open(at)
-        this.skipInitialUserEcho = this.delivery.consumeNext()
+        this.skipInitialUserEcho = this.delivery.consumeNext() || idle
         return
+      }
       case 'message_start':
       case 'message_update':
       case 'message_end': {
         this.touch()
         const message = piRpcMessageSchema.safeParse(frame.message)
-        if (message.success && message.data.role === 'user' && frame.type === 'message_end') {
-          // agent_start already accepted the first prompt; user echoes consume queued inputs.
-          if (this.skipInitialUserEcho) {
-            this.skipInitialUserEcho = false
-          } else {
+        if (message.success && message.data.role !== 'system' && frame.type === 'message_end') {
+          // A run's first message is the prompt that started it; later user echoes consume queued inputs.
+          const initial = this.skipInitialUserEcho
+          this.skipInitialUserEcho = false
+          if (message.data.role === 'user' && !initial) {
             this.delivery.consumeNext()
           }
         }
