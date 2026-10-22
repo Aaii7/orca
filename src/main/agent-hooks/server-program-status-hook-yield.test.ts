@@ -6,6 +6,7 @@ import { AgentHookServer } from './server'
 import { buildBody, PANE, postHookEvent } from './server.test-fixtures'
 import type { ParsedAgentStatusPayload } from '../../shared/agent-status-types'
 import { HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS } from './server/program-status/hook-precedence'
+import { resolveProgramStatusPresentation } from '../../shared/program-status/presentation'
 
 let dir: string
 let server: AgentHookServer
@@ -193,6 +194,42 @@ describe('OSC 7501 status beside hooks', () => {
     programStatus({ state: 'working', agentType: 'opencode' })
     vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
     expect(paneRow()?.state).toBe('working')
+  })
+
+  describe('a program block beside a hook row', () => {
+    const approvePlan = (): void => {
+      server.ingestProgramStatusFacet({
+        paneKey: PANE,
+        facet: {
+          state: 'blocked',
+          kind: 'permission',
+          message: 'Approve plan',
+          observedAt: Date.now()
+        }
+      })
+      programStatus({ state: 'waiting', agentType: 'opencode', toolInput: 'Approve plan' })
+    }
+
+    it('leaves a turn the hooks settled done, through any hook silence (#31547)', async () => {
+      await openCodeHook('SessionIdle')
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      approvePlan()
+      vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
+      expect(paneRow()?.state).toBe('done')
+      expect(resolveProgramStatusPresentation(paneRow()).attention).toBeUndefined()
+    })
+
+    it('surfaces an approval the program waits on mid-turn, and takes the row once hooks fall silent', async () => {
+      await openCodeHook('SessionBusy')
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      approvePlan()
+      expect(resolveProgramStatusPresentation(paneRow()).attention).toEqual({
+        kind: 'permission',
+        message: 'Approve plan'
+      })
+      vi.advanceTimersByTime(HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS + 1)
+      expect(paneRow()).toMatchObject({ state: 'waiting', toolInput: 'Approve plan' })
+    })
   })
 
   describe('hybrid: the program facet rides whichever producer owns the row', () => {

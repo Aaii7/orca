@@ -217,7 +217,15 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
       event.fromProgramStatus === true &&
       programStatusYieldsToHookRow(previous, event.payload, Date.now())
     if (event.fromProgramStatus === true) {
-      if (hookOwnsAgent && previous && event.payload.state !== previous.payload.state) {
+      const hookSilenceEndsYield =
+        hookOwnsAgent &&
+        previous !== undefined &&
+        !programStatusYieldsToHookRow(
+          previous,
+          event.payload,
+          previous.receivedAt + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS
+        )
+      if (hookSilenceEndsYield) {
         const yieldedTo = previous.receivedAt
         const delayMs = yieldedTo + HOOK_SILENCE_BEFORE_PROGRAM_STATUS_FALLBACK_MS - Date.now()
         this.hookSilenceRechecks.defer(paneKey, delayMs + 1, (currentPaneKey) => {

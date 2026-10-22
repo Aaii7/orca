@@ -22,6 +22,11 @@ export function programStatusYieldsToHookRow(
   if (!sameAgent && previous.payload.state === 'done') {
     return false
   }
+  // Hooks fall silent after a settled turn by design, so only new work outranks them; a block the
+  // program reports then rides its facet (resolveProgramStatusPresentation).
+  if (previous.payload.state === 'done' && payload.state !== 'working') {
+    return true
+  }
   const hookSilentForMs = now - previous.receivedAt
   return (
     payload.state === previous.payload.state ||

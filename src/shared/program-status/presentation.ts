@@ -16,7 +16,8 @@ export type ProgramStatusPresentation = {
   /** The program's own line for a live row whose producer has no structured tool preview. */
   message?: string
   /** A block the program reports that the row's own state does not show (e.g. sign-in after a
-   *  hook-owned turn ended). Present only while the row reads as not needing the user. */
+   *  hook-owned turn ended). Present only while the row reads as not needing the user, and for an
+   *  approval or question only while the turn runs. */
   attention?: ProgramStatusAttention
 }
 
@@ -49,7 +50,12 @@ export function resolveProgramStatusPresentation(
   if (bothLive && facet.message && !entry.toolName?.trim()) {
     presentation.message = facet.message
   }
-  if (facet.state === 'blocked' && entry.state !== 'waiting' && entry.state !== 'blocked') {
+  // Why: approvals and answers belong to a running turn, so a finished one has none pending; sign-in outlives it.
+  const turnScopedBlock = facet.kind === 'permission' || facet.kind === 'question'
+  if (
+    facet.state === 'blocked' &&
+    (entry.state === 'working' || (entry.state === 'done' && !turnScopedBlock))
+  ) {
     presentation.attention = {
       ...(facet.kind ? { kind: facet.kind } : {}),
       ...(facet.message ? { message: facet.message } : {})

@@ -69,6 +69,25 @@ describe('programStatusYieldsToHookRow', () => {
     expect(programStatusYieldsToHookRow(hook, disagree, NOW + SILENCE)).toBe(false)
   })
 
+  it('lets only new work take a turn the hooks settled, however long they stay silent', () => {
+    const hook = row({ state: 'done', agentType: 'antigravity' })
+    const later = NOW + 10 * SILENCE
+    expect(
+      programStatusYieldsToHookRow(
+        hook,
+        report({ state: 'waiting', agentType: 'antigravity' }),
+        later
+      )
+    ).toBe(true)
+    expect(
+      programStatusYieldsToHookRow(
+        hook,
+        report({ state: 'working', agentType: 'antigravity' }),
+        later
+      )
+    ).toBe(false)
+  })
+
   it('yields to a mid-turn hook row under another app id, not to a finished one', () => {
     expect(
       programStatusYieldsToHookRow(
