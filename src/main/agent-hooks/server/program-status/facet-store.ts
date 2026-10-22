@@ -18,7 +18,8 @@ type StoredProgramStatus = {
 /**
  * Each pane's latest OSC 7501 facet, kept apart from the status rows. A row's producer (hook or OSC)
  * owns its state; this map is owned by the OSC 7501 channel alone and is stitched onto rows only as
- * they are published, so it is never persisted and never compared as a row change.
+ * they are published, so it is never persisted and never compared as a row change. It also keeps when
+ * the program last entered `working` (noteState), which relies on a chunk's facet arriving first.
  */
 export class ProgramStatusFacetStore {
   private readonly byPaneKey = new Map<string, StoredProgramStatus>()

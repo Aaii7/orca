@@ -27,9 +27,9 @@ export function programStatusHookYieldEndsAt(
   if (payload.state === previous.payload.state) {
     return Infinity
   }
-  // Hooks fall silent after a settled turn by design, so silence proves nothing there; a block only
-  // outranks them once the program has worked since (a turn the hooks missed).
-  if (previous.payload.state === 'done' && payload.state !== 'working') {
+  // Hooks fall silent after a settled turn by design, so silence proves nothing there; an approval or
+  // question only outranks them once the program has worked since (a turn the hooks missed).
+  if (previous.payload.state === 'done' && payload.state === 'waiting') {
     return programWorkingSince !== undefined && programWorkingSince > previous.receivedAt
       ? undefined
       : Infinity

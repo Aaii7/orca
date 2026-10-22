@@ -62,9 +62,11 @@ describe('programStatusHookYieldEndsAt', () => {
     expect(programStatusHookYieldEndsAt(hook, block)).toBe(Infinity)
     expect(programStatusHookYieldEndsAt(hook, block, NOW - 1)).toBe(Infinity)
     expect(programStatusHookYieldEndsAt(hook, block, NOW + 1)).toBeUndefined()
-    expect(
-      programStatusHookYieldEndsAt(hook, report({ state: 'working', agentType: 'antigravity' }))
-    ).toBe(NOW + SILENCE)
+    for (const state of ['working', 'blocked'] as const) {
+      expect(programStatusHookYieldEndsAt(hook, report({ state, agentType: 'antigravity' }))).toBe(
+        NOW + SILENCE
+      )
+    }
   })
 
   it('yields to a mid-turn hook row under another app id, not to a finished one', () => {
