@@ -255,7 +255,7 @@ export function writeAcpSessionOption(
   connection: Pick<AcpStructuredConnection, 'setConfigOption' | 'setModel'>,
   options: AcpStructuredOptions,
   write: AcpOptionWrite,
-  bound: { agent: string; timeoutMs: number; signal?: AbortSignal; key: string }
+  bound: { agent: string; timeoutMs: number; signal?: AbortSignal; key: string; value: string }
 ): Promise<void> {
   const { agent, timeoutMs, signal } = bound
   if (signal?.aborted) {
@@ -272,7 +272,7 @@ export function writeAcpSessionOption(
     }
     apply()
     options.currentProof.add(bound.key)
-    options.applied.set(bound.key, write.method === 'config' ? write.value : write.modelId)
+    options.applied.set(bound.key, bound.value)
   }
   const applied =
     write.method === 'config'
