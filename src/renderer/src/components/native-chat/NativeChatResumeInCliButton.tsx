@@ -10,6 +10,7 @@ import {
 } from '../tab-bar/native-chat-cli-fork-run'
 import {
   resolveTabSessionHistorySubject,
+  resolveNativeChatCliForkIdentity,
   type NativeChatTabSession
 } from '../tab-bar/tab-session-history-switch'
 
@@ -23,16 +24,20 @@ export function NativeChatResumeInCliButton({
   nativeChat: NativeChatTabSession
 }): React.JSX.Element | null {
   const tab = { id: tabId, worktreeId }
-  const subject = resolveTabSessionHistorySubject(useAppStore.getState(), { tab, nativeChat })
-  const chat = subject?.kind === 'chat' ? subject : null
-  const pending = useNativeChatCliForkPending(chat)
+  const executionHostScope = useAppStore(
+    (state) =>
+      resolveNativeChatCliForkIdentity(state, { tab, nativeChat })?.executionHostScope ?? null
+  )
+  const pending = useNativeChatCliForkPending(
+    executionHostScope ? { executionHostScope, sessionId: nativeChat.sessionId } : null
+  )
   const commandOverrides = useAppStore((state) => state.settings?.agentCmdOverrides)
   const agent = AI_VAULT_AGENTS.find((candidate) => candidate === nativeChat.agent)
   const label = translate(
     'components.tab.bar.SortableTabContextMenu.switchToTerminalView',
     'Continue with Terminal Agent'
   )
-  if (!chat || !agent) {
+  if (!executionHostScope || !agent) {
     return null
   }
   return (
@@ -47,7 +52,13 @@ export function NativeChatResumeInCliButton({
           aria-busy={pending || undefined}
           onClick={(event) => {
             event.stopPropagation()
-            void runNativeChatCliFork({ subject: chat, tab, agent, commandOverrides })
+            const subject = resolveTabSessionHistorySubject(useAppStore.getState(), {
+              tab,
+              nativeChat
+            })
+            if (subject?.kind === 'chat') {
+              void runNativeChatCliFork({ subject, tab, agent, commandOverrides })
+            }
           }}
         >
           <SquareTerminal className="size-3" />

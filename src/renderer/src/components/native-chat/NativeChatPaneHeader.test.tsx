@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
 import { createTabsSliceMockApi } from '@/store/slices/tabs-slice-test-harness'
+import { makeFolderWorkspace } from '@/store/slices/worktrees-slice-test-fixtures'
+import * as historyRequest from '../right-sidebar/ai-vault-panel-session-list-request'
 
 const mocks = vi.hoisted(() => ({ launch: vi.fn(), resume: vi.fn(), close: vi.fn() }))
 vi.mock('@/store', async () => {
@@ -16,15 +18,10 @@ vi.mock('../tab-bar/native-chat-cli-fork-run', () => ({
   runNativeChatCliFork: mocks.resume,
   useNativeChatCliForkPending: () => false
 }))
-vi.mock('../tab-bar/tab-session-history-switch', () => ({
-  resolveTabSessionHistorySubject: (
-    _state: unknown,
-    args: { nativeChat: { sessionId: string } }
-  ) => ({ kind: 'chat', sessionId: args.nativeChat.sessionId, workspaceId: 'folder-workspace' })
-}))
 
 import { NativeChatPaneHeader } from './NativeChatPaneHeader'
 
+const fullRequest = vi.spyOn(historyRequest, 'resolveAiVaultPanelSessionListRequest')
 const testWindow = window
 const api = createTabsSliceMockApi()
 vi.stubGlobal('window', testWindow)
@@ -33,10 +30,13 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.clearAllMocks()
   useAppStore.setState(useAppStore.getInitialState(), true)
+  useAppStore.setState({
+    folderWorkspaces: [makeFolderWorkspace({ id: 'workspace', folderPath: '/repo' })]
+  })
 })
 
 function renderHeader() {
-  const source = useAppStore.getState().createUnifiedTab('folder-workspace', 'agent-session', {
+  const source = useAppStore.getState().createUnifiedTab('folder:workspace', 'agent-session', {
     agentSessionAgent: 'codex',
     executionHostId: 'runtime:remote-host'
   })
@@ -62,10 +62,19 @@ it('offers the terminal header action order and targets Resume and Close at the 
     'Split Chat Right',
     'Close tab'
   ])
+  const folder = useAppStore.getState().folderWorkspaces[0]
+  act(() => useAppStore.setState({ folderWorkspaces: [{ ...folder, executionHostId: 'ssh:dev' }] }))
+  expect(screen.queryByRole('button', { name: 'Continue with Terminal Agent' })).toBeNull()
+  act(() => useAppStore.setState({ folderWorkspaces: [folder] }))
+  expect(fullRequest).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Continue with Terminal Agent' }))
+  expect(fullRequest).toHaveBeenCalledTimes(1)
   expect(mocks.resume).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({
-      subject: expect.objectContaining({ sessionId: source.entityId }),
+      subject: expect.objectContaining({
+        sessionId: source.entityId,
+        request: { scopePaths: ['/repo'], executionHostScope: 'local', sessionLimit: 250 }
+      }),
       tab: { id: source.id, worktreeId: source.worktreeId },
       agent: 'codex'
     })
