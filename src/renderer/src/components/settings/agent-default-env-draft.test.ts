@@ -20,13 +20,45 @@ describe('agent default environment draft', () => {
     expect(stringifyAgentDefaultEnvDraft({ FOO: 'bar', BAZ: 'qux' })).toBe('FOO=bar BAZ=qux')
   })
 
+  it('parses back every value it formats', () => {
+    const env = {
+      SPACED: 'two words',
+      APOSTROPHE: "it's",
+      DOUBLE: 'say "hi"',
+      BOTH: `it's "x"`,
+      EQUALS: 'a=b',
+      EMPTY: '',
+      WIN_PATH: 'C:\\Program Files\\tool',
+      TAB: 'a\tb',
+      PLAIN: 'keep'
+    }
+
+    expect(parseAgentDefaultEnvDraft(stringifyAgentDefaultEnvDraft(env))).toEqual({
+      env,
+      error: null
+    })
+  })
+
+  it('keeps backslashes typed without quotes', () => {
+    expect(parseAgentDefaultEnvDraft('TOOL=C:\\tools\\bin').env).toEqual({
+      TOOL: 'C:\\tools\\bin'
+    })
+  })
+
+  it('rejects a draft with an unclosed quote', () => {
+    expect(parseAgentDefaultEnvDraft('A="two words B=keep')).toEqual({
+      env: {},
+      error: 'unclosed-quote'
+    })
+  })
+
   it('tokenizes pasted environment whitespace without regex splitting', () => {
     const split = vi.spyOn(String.prototype, 'split')
     const draft = ['FOO=bar', String.fromCharCode(160), 'BAZ=qux\nSKIP\tTOKEN=value=kept'].join('')
 
     expect(parseAgentDefaultEnvDraft(draft)).toEqual({
       env: { FOO: 'bar', BAZ: 'qux', TOKEN: 'value=kept' },
-      tooLarge: false
+      error: null
     })
     expect(getRegexWhitespaceSplitCalls(split)).toHaveLength(0)
   })
@@ -35,7 +67,7 @@ describe('agent default environment draft', () => {
     const split = vi.spyOn(String.prototype, 'split')
     const draft = 'SECRET=value '.repeat(AGENT_DEFAULT_ENV_DRAFT_MAX_BYTES)
 
-    expect(parseAgentDefaultEnvDraft(draft)).toEqual({ env: {}, tooLarge: true })
+    expect(parseAgentDefaultEnvDraft(draft)).toEqual({ env: {}, error: 'too-large' })
     expect(getRegexWhitespaceSplitCalls(split)).toHaveLength(0)
   })
 })
