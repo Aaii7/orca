@@ -30,9 +30,7 @@ describe('openAnnotationLocation', () => {
     openAnnotationLocation({
       worktreeId: 'wt-1',
       path: 'src/a.ts',
-      line: 3,
-      revealRafRef: { current: null },
-      revealInnerRafRef: { current: null }
+      line: 3
     })
 
     // Why: the annotation's editor file is the surface — the jump must not re-seed
@@ -50,9 +48,7 @@ describe('openAnnotationLocation', () => {
     openAnnotationLocation({
       worktreeId: 'missing',
       path: 'src/a.ts',
-      line: 3,
-      revealRafRef: { current: null },
-      revealInnerRafRef: { current: null }
+      line: 3
     })
 
     expect(mocks.activateAndRevealWorktree).not.toHaveBeenCalled()

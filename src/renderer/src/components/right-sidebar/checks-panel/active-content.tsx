@@ -17,6 +17,7 @@ import { PRTriageStrip } from './triage-strip'
 import { ConflictingFilesSection, MergeConflictNotice } from './conflict-summary'
 import { ChecksList } from './checks-list'
 import { PRCommentsList } from './comments-list'
+import { openAnnotationLocation } from '@/components/editor/check-annotation-open'
 import { translate } from '@/i18n/i18n'
 import type { ChecksPanelActiveContentModel } from './active-content-props'
 import { ChecksPanelReviewHeader } from './review-header'
@@ -259,6 +260,11 @@ export function ChecksPanelActiveContent({
         onEditComment={pr ? handleEditComment : undefined}
         onDeleteComment={pr ? handleDeleteComment : undefined}
         onSetReaction={canTargetPRComments ? handleSetReaction : undefined}
+        onOpenCommentLocation={
+          activeWorktreeId
+            ? (path, line) => openAnnotationLocation({ worktreeId: activeWorktreeId, path, line })
+            : undefined
+        }
       />
       <SourceControlAgentActionDialog
         open={sourceControlAiActionsVisible && agentComposerState !== null}
