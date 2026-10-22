@@ -20,7 +20,7 @@ export function endLinkifyUrlsAtProsePunctuation(linkify: Linkify): void {
       }
       offset += piece.length
     })
-    return links.length > 0 ? links : null
+    return links
   }
   linkify.matchAtStart = (text) => {
     const end = findProseUrlEnd(text)

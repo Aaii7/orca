@@ -152,6 +152,12 @@ describe('MobileMarkdown file links', () => {
     expect(openURL).toHaveBeenCalledExactlyOnceWith(url)
   })
 
+  it('renders text whose url candidate ends before its host', () => {
+    expect(flattenText(render('https://（ユーザー）@example.com').root)).toBe(
+      'https://（ユーザー）@example.com'
+    )
+  })
+
   it('opens inline-code path:line citations', () => {
     pressByText(render('fix `src/foo.ts:42` now'), 'src/foo.ts:42')
     expect(onOpenFile).toHaveBeenCalledWith('src/foo.ts:42')
