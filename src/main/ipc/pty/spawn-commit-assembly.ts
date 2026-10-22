@@ -28,6 +28,7 @@ import {
 import type { StablePaneOwner } from './pane/stable-owner'
 import { seedHeadlessTerminalFromSpawnResult } from './pane/terminal-spawn-restore'
 import type { RuntimePtySpawnArgs } from './runtime/spawn-state'
+import { reportRuntimeResumeOutcome } from './runtime/spawn-commit-response'
 import { savePtySpawnPaneBinding, type PtySpawnPaneBinding } from './spawn-commit-binding'
 import { publishCommittedPtySpawn, type PtySpawnPaneKeyAliases } from './spawn-commit-publication'
 
@@ -50,6 +51,7 @@ export type PtySpawnCommitState = {
     | 'tabId'
     | 'launchAgent'
     | 'resumeProviderSession'
+    | 'onResumeOutcome'
     | 'telemetry'
   >
   result: PtySpawnResult
@@ -65,6 +67,7 @@ export type PtySpawnCommitState = {
   sessionSizeBeforeAttach: PtyGrid | undefined
   isDaemonHostSpawn: boolean
   codexResumeHomeSelected: boolean
+  codexResumeUnavailable?: boolean
   selectedCodexHomePath: string | null
   codexSelectionTarget: CodexAccountSelectionTarget
   codexHomeLaunchStartedAt: Date | undefined
@@ -142,6 +145,12 @@ export async function commitPtySpawn<Reply extends PtySpawnResult>(
       providerReattachLaunchIdentity
     )
   }
+  reportRuntimeResumeOutcome({
+    args: state.args,
+    result,
+    codexResumeUnavailable: state.codexResumeUnavailable,
+    codexResumeArgvDropped: input.resumeArgvDropped
+  })
   if (input.paneBinding) {
     await savePtySpawnPaneBinding(state, input.paneBinding, state.args.connectionId)
   }
