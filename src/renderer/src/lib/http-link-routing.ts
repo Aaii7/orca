@@ -42,7 +42,6 @@ type StoreAccessor = () => HttpLinkBrowserTabState & {
       GlobalSettings,
       | 'openLinksInApp'
       | 'openLinksInAppModifierInverts'
-      | 'openLinksInAppInBackground'
       | 'activeRuntimeEnvironmentId'
       | 'localhostWorktreeLabelsEnabled'
     >

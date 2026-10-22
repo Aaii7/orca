@@ -27,14 +27,14 @@ export function handleGuestWindowCloseMessage(
   }
   const state = useAppStore.getState()
   const owner = resolveBrowserWorkspaceOwner(state, pageId)
-  const tab = owner
-    ? (state.unifiedTabsByWorktree[owner.worktreeId] ?? []).find(
-        (candidate) =>
-          candidate.contentType === 'browser' && candidate.entityId === owner.workspaceId
-      )
-    : undefined
+  if (!owner) {
+    return
+  }
+  const tab = (state.unifiedTabsByWorktree[owner.worktreeId] ?? []).find(
+    (candidate) => candidate.contentType === 'browser' && candidate.entityId === owner.workspaceId
+  )
   // Why: a pinned tab is one the user chose to keep; a page script can't overrule that.
-  if (!owner || tab?.isPinned) {
+  if (tab?.isPinned) {
     return
   }
   pagesOpenedByPage.delete(pageId)

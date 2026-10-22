@@ -67,26 +67,24 @@ export function getLinkRoutingModifierDescription({
       )
 }
 
-export function getLinkRoutingBackgroundTitle(): string {
+function getLinkRoutingBackgroundTitle(): string {
   return translate(
     'auto.components.settings.BrowserLinkRoutingBackgroundSetting.title',
     'Open links in the background'
   )
 }
 
-export function getLinkRoutingBackgroundDescription(): string {
+function getLinkRoutingBackgroundDescription(): string {
   return translate(
     'auto.components.settings.BrowserLinkRoutingBackgroundSetting.description',
     'Links from the terminal, chat, and markdown join the browser without taking focus from where you clicked.'
   )
 }
 
-export const LINK_ROUTING_BACKGROUND_KEYWORDS = ['browser', 'links', 'background', 'focus', 'tab']
-
 export function getLinkRoutingBackgroundSearchEntry(): SettingsSearchEntry {
   return {
     title: getLinkRoutingBackgroundTitle(),
     description: getLinkRoutingBackgroundDescription(),
-    keywords: LINK_ROUTING_BACKGROUND_KEYWORDS
+    keywords: ['browser', 'links', 'background', 'focus', 'tab']
   }
 }

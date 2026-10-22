@@ -4,6 +4,7 @@ import type { TabSplitTarget } from '@/store/slices/tabs/tabs-slice-contract'
 import type { Tab, TabGroup } from '../../../shared/tab-types'
 import { liveLayoutGroupIds } from '@/store/slices/editor/tabs/editor-open-target-group'
 import { requestBrowserFocus } from '@/components/browser-pane/host-guest/browser-focus'
+import type { OpenWorkspaceBrowserTabRequest } from './workspace-browser-tab-open'
 import type { BrowserWorkspace } from '../../../shared/browser-workspace-types'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import { isFloatingWorkspaceId } from '../../../shared/floating-workspace-worktree'
@@ -27,12 +28,10 @@ export type HttpLinkBrowserTabState = Partial<
 }
 
 /** How the remote opener places and focuses a link's tab; same rule as a local link. */
-export type HttpLinkBrowserRequestFields = {
-  targetGroupId?: string
-  split?: TabSplitTarget
-  focusOnCreate?: boolean
-  selectWorktree?: boolean
-}
+export type HttpLinkBrowserRequestFields = Pick<
+  OpenWorkspaceBrowserTabRequest,
+  'targetGroupId' | 'split' | 'focusOnCreate' | 'selectWorktree'
+>
 
 /**
  * Where a link opened from an Orca surface lands: the browser already on screen, else a split
@@ -99,7 +98,7 @@ export function prepareRemoteHttpLinkTab(
     return { ...placement, focusOnCreate: false, selectWorktree: false }
   }
   showWorkspaceTabs(state, worktreeId)
-  return { ...placement }
+  return placement ?? {}
 }
 
 /** A link clicked in Agents View lands in the workspace's tab layout, so bring that layout on screen. */

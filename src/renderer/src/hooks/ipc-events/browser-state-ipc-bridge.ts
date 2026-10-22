@@ -153,9 +153,10 @@ export function registerBrowserStateIpcBridge(
         browserPageId,
         sourcePage.worktreeId
       )
+      const foreground = activate ?? true
       const created = store.createBrowserTab(sourcePage.worktreeId, url, {
         title: url,
-        activate: activate ?? true,
+        activate: foreground,
         ...(sourceUnifiedTab ? { afterTabId: sourceUnifiedTab.id } : {}),
         ...(sourceUnifiedTab?.executionHostId
           ? { executionHostId: sourceUnifiedTab.executionHostId }
@@ -170,7 +171,7 @@ export function registerBrowserStateIpcBridge(
       if (created.activePageId) {
         markBrowserPageOpenedByPage(created.activePageId)
         // Why: keyboard focus follows a foreground tab, so Cmd/Ctrl+W closes it instead of its opener.
-        if (activate !== false) {
+        if (foreground) {
           requestBrowserFocus({ pageId: created.activePageId, target: 'webview' })
         }
       }
