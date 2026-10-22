@@ -30,6 +30,7 @@ describe('extractTerminalHttpLinks', () => {
   it('stops at a full-width comma and full stop between a url and prose', () => {
     expect(urlsIn('https://example.com/a、次へ')).toEqual(['https://example.com/a'])
     expect(urlsIn('https://example.com/b。')).toEqual(['https://example.com/b'])
+    expect(urlsIn('詳細はhttps://example.com/docs……')).toEqual(['https://example.com/docs'])
   })
 
   it('still extracts a plain ascii url and keeps its own punctuation', () => {
