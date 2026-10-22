@@ -135,9 +135,10 @@ describe('gitlab project ref resolution', () => {
     expect(gitRemoteGetUrlCalls('origin')).toHaveLength(1)
   })
 
-  it('finds the GitLab project on a remote named neither origin nor upstream', async () => {
+  it('finds the GitLab project on other remotes, preferring one named gitlab like glab', async () => {
     mockGitRemoteCommands({
       origin: 'git@github.com:stablyai/orca.git\n',
+      'a-fork': 'git@gitlab.com:someone/orca.git\n',
       gitlab: 'git@gitlab.com:stablyai/orca.git\n'
     })
 

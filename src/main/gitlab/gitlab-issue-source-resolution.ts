@@ -45,10 +45,10 @@ async function getProjectRefForOtherRemote(
   localGitOptions: LocalGitExecOptions = {}
 ): Promise<ProjectRef | null> {
   const remotes = await listCachedRemoteNames(repoPath, connectionId, localGitOptions)
-  for (const remoteName of remotes ?? []) {
-    if (remoteName === 'origin' || remoteName === 'upstream') {
-      continue
-    }
+  const otherRemotes = (remotes ?? []).filter((name) => name !== 'origin' && name !== 'upstream')
+  // Why: glab ranks a remote named `gitlab` above the rest.
+  otherRemotes.sort((a, b) => Number(b === 'gitlab') - Number(a === 'gitlab'))
+  for (const remoteName of otherRemotes) {
     const projectRef = await getProjectRefForRemote(
       repoPath,
       remoteName,
