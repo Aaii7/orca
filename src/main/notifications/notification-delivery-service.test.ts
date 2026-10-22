@@ -6,6 +6,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import { createNotificationDeliveryService } from './notification-delivery-service'
+import { toWebTerminalSurfaceTabId } from '../../shared/terminal-surface-id'
 import type { NotificationDeliveryDependencies } from './notification-delivery-service'
 import type {
   NotificationDispatchRequest,
@@ -26,6 +27,8 @@ function makeSettings(overrides: Partial<NotificationSettings> = {}): Notificati
     ...overrides
   }
 }
+
+const LEAF = '11111111-1111-4111-8111-111111111111'
 
 function makeRequest(
   overrides: Partial<NotificationDispatchRequest> = {}
@@ -288,13 +291,17 @@ it("tells the phone which server and pane raised it, through the gateway's push"
     createNotificationDeliveryService(harness.deps).dispatch(
       makeRequest({
         agentState: 'done',
-        paneKey: 'tab-1:leaf-1',
+        paneKey: executionHost
+          ? `${toWebTerminalSurfaceTabId('host-tab')}:${LEAF}`
+          : `tab-1:${LEAF}`,
         ...(executionHost ? { executionHost } : {})
       })
     )
     await flush()
     expect(push.sends[0]?.notification.worktreeId).toBe('wt-1')
-    expect(push.sends[0]?.notification.paneKey).toBe('tab-1:leaf-1')
+    expect(push.sends[0]?.notification.paneKey).toBe(
+      executionHost ? `host-tab:${LEAF}` : `tab-1:${LEAF}`
+    )
     expect(push.sends[0]?.notification.executionHost).toBe(executionHost)
   }
 })

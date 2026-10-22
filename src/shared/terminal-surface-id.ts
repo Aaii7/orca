@@ -1,3 +1,5 @@
+import { makePaneKey, parsePaneKey } from './stable-pane-id'
+
 export const WEB_TERMINAL_SURFACE_TAB_PREFIX = 'web-terminal-'
 export const HOST_TERMINAL_SURFACE_SEPARATOR = '::'
 
@@ -17,6 +19,12 @@ export function toHostSessionTabId(tabId: string): string {
   } catch {
     return tabId
   }
+}
+
+/** The pane key as the execution host's own session tabs name that pane. */
+export function toHostSessionPaneKey(paneKey: string): string {
+  const pane = parsePaneKey(paneKey)
+  return pane ? makePaneKey(toHostSessionTabId(pane.tabId), pane.leafId) : paneKey
 }
 
 export function isWebTerminalSurfaceTabId(tabId: string): boolean {
